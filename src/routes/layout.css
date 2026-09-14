@@ -4,3 +4,133 @@
 
 @source '../../node_modules/flowbite-svelte/dist';
 @source '../../node_modules/flowbite-svelte-icons/dist';
+
+/*
+ * Palette 4 design tokens.
+ * Flowbite-svelte components reference shades 50-900 of
+ * gray, green, red, yellow, blue, purple, indigo, teal, and primary.
+ * Each scale is overridden below so every component uses Palette 4.
+ */
+@theme {
+	/* Primary — teal */
+	--color-teal-050: #effcf6;
+	--color-teal-50: #effcf6;
+	--color-teal-100: #c6f7e2;
+	--color-teal-200: #8eedc7;
+	--color-teal-300: #65d6ad;
+	--color-teal-400: #3ebd93;
+	--color-teal-500: #27ab83;
+	--color-teal-600: #199473;
+	--color-teal-700: #147d64;
+	--color-teal-800: #0c6b58;
+	--color-teal-900: #014d40;
+
+	--color-primary-50: #effcf6;
+	--color-primary-100: #c6f7e2;
+	--color-primary-200: #8eedc7;
+	--color-primary-300: #65d6ad;
+	--color-primary-400: #3ebd93;
+	--color-primary-500: #27ab83;
+	--color-primary-600: #199473;
+	--color-primary-700: #147d64;
+	--color-primary-800: #0c6b58;
+	--color-primary-900: #014d40;
+
+	/* Neutrals — blue-grey (also overrides Flowbite gray scale) */
+	--color-blue-grey-050: #f0f4f8;
+	--color-blue-grey-50: #f0f4f8;
+	--color-blue-grey-100: #d9e2ec;
+	--color-blue-grey-200: #bcccdc;
+	--color-blue-grey-300: #9fb3c8;
+	--color-blue-grey-400: #829ab1;
+	--color-blue-grey-500: #627d98;
+	--color-blue-grey-600: #486581;
+	--color-blue-grey-700: #334e68;
+	--color-blue-grey-800: #243b53;
+	--color-blue-grey-900: #102a43;
+
+	--color-gray-50: #f0f4f8;
+	--color-gray-100: #d9e2ec;
+	--color-gray-200: #bcccdc;
+	--color-gray-300: #9fb3c8;
+	--color-gray-400: #829ab1;
+	--color-gray-500: #627d98;
+	--color-gray-600: #486581;
+	--color-gray-700: #334e68;
+	--color-gray-800: #243b53;
+	--color-gray-900: #102a43;
+
+	/* Supporting — blue (informational) */
+	--color-blue-050: #dceefb;
+	--color-blue-100: #b6e0fe;
+	--color-blue-200: #84c5f4;
+	--color-blue-300: #62b0e8;
+	--color-blue-400: #4098d7;
+	--color-blue-500: #2680c2;
+	--color-blue-600: #186faf;
+	--color-blue-700: #0f609b;
+	--color-blue-800: #0a558c;
+	--color-blue-900: #003e6b;
+
+	/* Supporting — purple (secondary accent, also overrides indigo) */
+	--color-purple-050: #eae2f8;
+	--color-purple-50: #eae2f8;
+	--color-purple-100: #cfbcf2;
+	--color-purple-200: #a081d9;
+	--color-purple-300: #8662c7;
+	--color-purple-400: #724bb7;
+	--color-purple-500: #653cad;
+	--color-purple-600: #51279b;
+	--color-purple-700: #421987;
+	--color-purple-800: #34126f;
+	--color-purple-900: #240754;
+
+	--color-indigo-50: #eae2f8;
+	--color-indigo-100: #cfbcf2;
+	--color-indigo-200: #a081d9;
+	--color-indigo-300: #8662c7;
+	--color-indigo-400: #724bb7;
+	--color-indigo-500: #653cad;
+	--color-indigo-600: #51279b;
+	--color-indigo-700: #421987;
+	--color-indigo-800: #34126f;
+	--color-indigo-900: #240754;
+
+	/* Semantic — red (error/incorrect) */
+	--color-red-050: #ffeeee;
+	--color-red-50: #ffeeee;
+	--color-red-100: #facdcd;
+	--color-red-200: #f29b9b;
+	--color-red-300: #e66a6a;
+	--color-red-400: #d64545;
+	--color-red-500: #ba2525;
+	--color-red-600: #a61b1b;
+	--color-red-700: #911111;
+	--color-red-800: #780a0a;
+	--color-red-900: #610404;
+
+	/* Semantic — yellow (warning/flagged) */
+	--color-yellow-050: #fffaeb;
+	--color-yellow-50: #fffaeb;
+	--color-yellow-100: #fcefc7;
+	--color-yellow-200: #f8e3a3;
+	--color-yellow-300: #f9da8b;
+	--color-yellow-400: #f7d070;
+	--color-yellow-500: #e9b949;
+	--color-yellow-600: #c99a2e;
+	--color-yellow-700: #a27c1a;
+	--color-yellow-800: #7c5e10;
+	--color-yellow-900: #513c06;
+
+	/* Semantic — success maps to teal */
+	--color-green-50: #effcf6;
+	--color-green-100: #c6f7e2;
+	--color-green-200: #8eedc7;
+	--color-green-300: #65d6ad;
+	--color-green-400: #3ebd93;
+	--color-green-500: #27ab83;
+	--color-green-600: #199473;
+	--color-green-700: #147d64;
+	--color-green-800: #0c6b58;
+	--color-green-900: #014d40;
+}
