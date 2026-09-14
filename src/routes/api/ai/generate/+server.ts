@@ -1,7 +1,5 @@
 import type { RequestHandler } from './$types';
-import { generateQuestions } from '$lib/ai/generator';
-import { OpenCodeProviderError } from '$lib/ai/opencode';
-import { AIParseError } from '$lib/ai/parser';
+import { startGenerationJob, runGenerationJob } from '$lib/ai/generator';
 import { listDomains } from '$lib/repositories/question.repository';
 import { json } from '@sveltejs/kit';
 import type { Difficulty, QuestionType } from '$lib/types/question';
@@ -50,19 +48,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		scenarioStyle: typeof scenarioStyle === 'string' ? scenarioStyle : undefined
 	};
 
-	try {
-		const result = await generateQuestions(config, model);
-		return json({ questions: result.questions, model: result.model });
-	} catch (err) {
-		if (err instanceof OpenCodeProviderError) {
-			return json({ error: err.message }, { status: 502 });
-		}
-		if (err instanceof AIParseError) {
-			return json(
-				{ error: `AI response validation failed: ${err.message}`, rawPreview: err.rawPreview },
-				{ status: 422 }
-			);
-		}
-		return json({ error: 'AI generation failed' }, { status: 500 });
-	}
+	const jobId = await startGenerationJob(config, model);
+	// Fire-and-forget: the job runs in the background; the client polls /api/ai/jobs/[id]
+	void runGenerationJob(jobId);
+
+	return json({ jobId, status: 'running' });
 };

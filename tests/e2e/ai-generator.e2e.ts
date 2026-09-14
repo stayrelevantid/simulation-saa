@@ -77,7 +77,9 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		await new Promise<void>((resolve) => mockServer.close(() => resolve()));
 	});
 
-	test('generate, preview, import, and see question in bank', async ({ page }) => {
+	test('generate (async), auto-save valid questions, and see them in the bank', async ({
+		page
+	}) => {
 		await page.goto('/ai-generator');
 		await expect(page.getByRole('heading', { name: 'AI Question Generator' })).toBeVisible();
 
@@ -92,13 +94,13 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 
 		await page.getByRole('button', { name: 'Generate Questions' }).click();
 
-		await expect(page.getByText('1 Questions Generated')).toBeVisible({ timeout: 15_000 });
+		// Async job: a progress bar appears, then the result is auto-saved
+		await expect(page.getByText('%', { exact: false })).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText('1 Questions Generated')).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('✓ 1 Valid')).toBeVisible();
+		await expect(page.getByText(/Auto-saved\./)).toBeVisible();
 
-		await page.getByRole('button', { name: /Import 1 Valid Questions/ }).click();
-
-		await expect(page.getByText(/Import complete/)).toBeVisible({ timeout: 15_000 });
-		await page.getByRole('link', { name: 'View Question Bank' }).click();
+		await page.getByRole('link', { name: 'View Question Bank' }).first().click();
 
 		await page.waitForURL(/\/questions/);
 		await page.getByPlaceholder('Search questions...').fill(String(RUN_ID));

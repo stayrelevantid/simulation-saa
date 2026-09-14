@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Alert, Badge, Button, Checkbox, Input, Label, Spinner } from 'flowbite-svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import SectionCard from '$lib/components/ui/SectionCard.svelte';
@@ -9,8 +9,10 @@
 	import QuestionExplanation from '$lib/components/question/QuestionExplanation.svelte';
 	import ModelPicker from '$lib/components/ai/ModelPicker.svelte';
 	import ServicePicker from '$lib/components/ai/ServicePicker.svelte';
+	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import type { AIModel, GeneratedQuestion } from '$lib/ai/provider';
+	import type { GenerationJobResult } from '$lib/ai/generator';
 
 	let { data }: PageProps = $props();
 
@@ -24,21 +26,22 @@
 	let selectedDomains = $state<string[]>([]);
 	let selectedServices = $state<string[]>([]);
 
-	let generating = $state(false);
-	let validating = $state(false);
+	let jobStatus = $state<'idle' | 'running' | 'completed' | 'failed'>('idle');
+	let jobId = $state<number | null>(null);
+	let progPct = $state(0);
+	let startTs = $state(0);
 	let generateError = $state('');
 	let generateRaw = $state('');
 
-	let rawQuestions = $state<GeneratedQuestion[]>([]);
 	let validQuestions = $state<GeneratedQuestion[]>([]);
 	let needReview = $state<{ question: GeneratedQuestion; issues: string[] }[]>([]);
-
-	let importing = $state(false);
-	let importResult = $state<{ importedCount: number; skippedCount: number } | null>(null);
+	let savedCount = $state(0);
 
 	let previewIndex = $state(0);
 	let previewSource = $state<'valid' | 'review'>('valid');
 	let showRaw = $state(false);
+
+	let pollTimer: ReturnType<typeof setInterval> | undefined;
 
 	const countValid = $derived(
 		Number.isInteger(questionCount) && questionCount >= 1 && questionCount <= 50
@@ -75,17 +78,71 @@
 		loadModels();
 	});
 
-	async function generate() {
-		generating = true;
-		generateError = '';
-		generateRaw = '';
-		rawQuestions = [];
-		validQuestions = [];
-		needReview = [];
-		importResult = null;
-		showRaw = false;
+	onDestroy(() => {
+		if (pollTimer) clearInterval(pollTimer);
+	});
+
+	function applyResult(result: GenerationJobResult) {
+		const preview = (result.preview ?? []) as GeneratedQuestion[];
+		const issueMap = new Map<number, string[]>();
+		for (const issue of result.issues ?? []) {
+			const list = issueMap.get(issue.questionIndex) ?? [];
+			list.push(issue.message);
+			issueMap.set(issue.questionIndex, list);
+		}
+		validQuestions = preview.filter((_, i) => !issueMap.has(i));
+		needReview = preview
+			.map((question, i) => ({ question, issues: issueMap.get(i) ?? [] }))
+			.filter((item) => item.issues.length > 0);
+		savedCount = result.importedCount ?? 0;
 		previewIndex = 0;
 		previewSource = 'valid';
+		jobStatus = 'completed';
+	}
+
+	function failJob(result?: GenerationJobResult) {
+		jobStatus = 'failed';
+		generateError = result?.error ?? 'Generation failed.';
+		generateRaw = result?.rawPreview ?? '';
+	}
+
+	async function poll() {
+		if (!jobId) return;
+		try {
+			const response = await fetch(`/api/ai/jobs/${jobId}`);
+			if (!response.ok) {
+				failJob();
+				return;
+			}
+			const data = await response.json();
+			if (data.status === 'running') {
+				const elapsed = Date.now() - startTs;
+				progPct = Math.min(90, Math.round((elapsed / 90_000) * 90));
+			} else if (data.status === 'completed') {
+				if (pollTimer) clearInterval(pollTimer);
+				progPct = 100;
+				applyResult(data.result);
+			} else {
+				if (pollTimer) clearInterval(pollTimer);
+				failJob(data.result);
+			}
+		} catch {
+			// transient poll error; keep polling
+		}
+	}
+
+	async function generate() {
+		if (!formValid || jobStatus === 'running') return;
+
+		jobStatus = 'running';
+		progPct = 0;
+		startTs = Date.now();
+		generateError = '';
+		generateRaw = '';
+		validQuestions = [];
+		needReview = [];
+		savedCount = 0;
+		showRaw = false;
 
 		try {
 			const response = await fetch('/api/ai/generate', {
@@ -101,83 +158,33 @@
 				})
 			});
 			const payload = await response.json();
-			if (response.ok) {
-				rawQuestions = payload.questions ?? [];
-				await validate();
-			} else {
-				generateError = payload.error ?? 'Generation failed';
-				generateRaw = payload.rawPreview ?? '';
+			if (!response.ok) {
+				jobStatus = 'failed';
+				generateError = payload.error ?? 'Failed to start generation';
+				return;
 			}
+			jobId = payload.jobId;
+			if (pollTimer) clearInterval(pollTimer);
+			pollTimer = setInterval(poll, 1500);
 		} catch {
-			generateError = 'Unable to connect to OpenCode Go.';
-		} finally {
-			generating = false;
+			jobStatus = 'failed';
+			generateError = 'Unable to start AI generation.';
 		}
 	}
 
-	async function validate() {
-		if (rawQuestions.length === 0) return;
-		validating = true;
-		previewIndex = 0;
-		previewSource = 'valid';
-
-		try {
-			const response = await fetch('/api/ai/validate', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ questions: rawQuestions })
-			});
-			const payload = await response.json();
-			if (response.ok) {
-				validQuestions = payload.validQuestions ?? [];
-				needReview = payload.needReview ?? [];
-			} else {
-				generateError = payload.error ?? 'Validation failed';
-			}
-		} catch {
-			generateError = 'Validation request failed.';
-		} finally {
-			validating = false;
-		}
-	}
-
-	async function importValid() {
-		if (validQuestions.length === 0) return;
-		importing = true;
-
-		try {
-			const response = await fetch('/api/ai/import', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ questions: validQuestions })
-			});
-			const payload = await response.json();
-			if (response.ok) {
-				importResult = {
-					importedCount: payload.importedCount,
-					skippedCount: payload.skippedCount
-				};
-				validQuestions = [];
-				needReview = [];
-				rawQuestions = [];
-			} else {
-				generateError = payload.error ?? 'Import failed';
-			}
-		} catch {
-			generateError = 'Import request failed.';
-		} finally {
-			importing = false;
-		}
-	}
-
-	function cancel() {
-		rawQuestions = [];
+	function reset() {
+		if (pollTimer) clearInterval(pollTimer);
+		jobStatus = 'idle';
+		jobId = null;
+		progPct = 0;
 		validQuestions = [];
 		needReview = [];
-		importResult = null;
+		savedCount = 0;
 		generateError = '';
 		generateRaw = '';
 		showRaw = false;
+		previewIndex = 0;
+		previewSource = 'valid';
 	}
 
 	const previewList = $derived(
@@ -192,7 +199,7 @@
 <PageContainer variant="reading">
 	<PageHeader
 		title="AI Question Generator"
-		subtitle="Generate original scenario-based SAA-C03 questions with OpenCode Go."
+		subtitle="Generate original scenario-based SAA-C03 questions with OpenCode Go. Valid questions are saved to the Question Bank automatically."
 	/>
 
 	<SectionCard>
@@ -200,7 +207,7 @@
 			class="space-y-6"
 			onsubmit={(e) => {
 				e.preventDefault();
-				if (formValid) generate();
+				generate();
 			}}
 		>
 			<div class="grid gap-5 sm:grid-cols-2">
@@ -311,16 +318,37 @@
 				color="primary"
 				size="lg"
 				class="w-full"
-				disabled={generating || !formValid}
+				disabled={jobStatus === 'running' || !formValid}
 			>
-				{#if generating}
-					<Spinner size="4" class="mr-2" /> Generating...
+				{#if jobStatus === 'running'}
+					<Spinner size="4" class="mr-2" /> Generating…
 				{:else}
 					Generate Questions
 				{/if}
 			</Button>
 		</form>
 	</SectionCard>
+
+	{#if jobStatus === 'running'}
+		<SectionCard>
+			<div class="p-6 text-center">
+				<div class="text-3xl font-bold text-teal-600 dark:text-teal-300">{progPct}%</div>
+				<div
+					class="mt-3 h-3 w-full overflow-hidden rounded-full bg-blue-grey-100 dark:bg-blue-grey-700"
+				>
+					<div
+						class="h-3 rounded-full bg-teal-500 transition-all duration-700 ease-out"
+						style="width: {progPct}%"
+					></div>
+				</div>
+				<div
+					class="mt-3 flex items-center justify-center gap-2 text-sm text-blue-grey-500 dark:text-blue-grey-300"
+				>
+					<Spinner size="4" /> Generating questions via OpenCode Go… valid questions are saved automatically.
+				</div>
+			</div>
+		</SectionCard>
+	{/if}
 
 	{#if generateError}
 		<SectionCard variant="danger">
@@ -335,53 +363,47 @@
 {generateRaw}</pre>
 				{/if}
 			{/if}
-		</SectionCard>
-	{/if}
-
-	{#if importResult}
-		<SectionCard variant="success">
-			<p class="text-sm text-teal-800 dark:text-teal-200">
-				<strong>Import complete.</strong>
-				{importResult.importedCount} questions imported into the Question Bank
-				{importResult.skippedCount > 0
-					? `, ${importResult.skippedCount} skipped (duplicates).`
-					: '.'}
-			</p>
-			<div class="mt-3">
-				<a
-					href="/questions"
-					class="text-sm font-medium text-teal-700 underline hover:text-teal-800 dark:text-teal-300"
-				>
-					View Question Bank →</a
-				>
+			<div class="mt-4">
+				<Button color="red" outline onclick={reset}>Try Again</Button>
 			</div>
 		</SectionCard>
 	{/if}
 
-	{#if generating || validating}
-		<SectionCard>
-			<div
-				class="flex items-center justify-center gap-3 p-8 text-blue-grey-500 dark:text-blue-grey-300"
-			>
-				<Spinner size="6" />
-				{generating ? 'Generating questions via OpenCode Go…' : 'Validating generated questions…'}
-			</div>
-		</SectionCard>
-	{/if}
-
-	{#if !generating && !validating && (validQuestions.length > 0 || needReview.length > 0)}
+	{#if jobStatus === 'completed' && (validQuestions.length > 0 || needReview.length > 0)}
 		<SectionCard>
 			<div class="mb-5 flex flex-wrap items-center justify-between gap-2">
 				<h2 class="text-lg font-semibold text-blue-grey-900 dark:text-white">
-					{rawQuestions.length} Questions Generated
+					{validQuestions.length + needReview.length} Questions Generated
 				</h2>
-				<div class="flex gap-2">
+				<div class="flex flex-wrap gap-2">
 					<Badge color="primary">✓ {validQuestions.length} Valid</Badge>
 					{#if needReview.length > 0}
 						<Badge color="yellow">⚠ {needReview.length} Need Review</Badge>
 					{/if}
 				</div>
 			</div>
+
+			{#if savedCount > 0}
+				<SectionCard variant="success" class="mb-5">
+					<p class="text-sm text-teal-800 dark:text-teal-200">
+						<strong>Auto-saved.</strong>
+						{savedCount} valid question
+						{savedCount === 1 ? '' : 's'} imported into the Question Bank.
+					</p>
+					<a
+						href={resolve('/questions')}
+						class="mt-2 inline-block text-sm font-medium text-teal-700 underline hover:text-teal-800 dark:text-teal-300"
+					>
+						View Question Bank →
+					</a>
+				</SectionCard>
+			{:else}
+				<SectionCard variant="warning" class="mb-5">
+					<p class="text-sm text-yellow-800 dark:text-yellow-200">
+						No valid questions to save — review the flagged questions below or regenerate.
+					</p>
+				</SectionCard>
+			{/if}
 
 			{#if needReview.length > 0}
 				<div class="mb-4 flex flex-wrap gap-2">
@@ -473,17 +495,9 @@
 			{/if}
 
 			<div class="mt-5 flex flex-col justify-end gap-2 sm:flex-row">
-				<Button color="primary" outline onclick={cancel}>Cancel</Button>
-				<Button color="primary" outline onclick={generate} disabled={generating}>
-					Regenerate All
-				</Button>
-				<Button
-					color="primary"
-					onclick={importValid}
-					disabled={importing || validQuestions.length === 0}
-				>
-					{importing ? 'Importing…' : `Import ${validQuestions.length} Valid Questions`}
-				</Button>
+				<Button color="primary" outline onclick={reset}>Cancel</Button>
+				<Button color="primary" outline onclick={generate}>Regenerate All</Button>
+				<Button href={resolve('/questions')} color="primary">View Question Bank</Button>
 			</div>
 		</SectionCard>
 	{/if}
