@@ -2,8 +2,7 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
-	import { resolve } from '$app/paths';
-	import { DarkMode, Navbar, NavBrand, NavUl, NavLi, NavHamburger, Button } from 'flowbite-svelte';
+	import { DarkMode, Navbar, NavBrand, NavUl, NavLi, NavHamburger } from 'flowbite-svelte';
 
 	let { children } = $props();
 
@@ -48,9 +47,6 @@
 			</span>
 		</NavBrand>
 		<div class="flex items-center md:order-2">
-			<Button href={resolve('/practice')} size="sm" class="hidden sm:inline-flex">
-				Start Practice
-			</Button>
 			<DarkMode />
 			<NavHamburger />
 		</div>
@@ -61,7 +57,6 @@
 					{item.label}
 				</NavLi>
 			{/each}
-			<NavLi href={resolve('/practice')} class="sm:hidden">Start Practice</NavLi>
 		</NavUl>
 	</Navbar>
 
