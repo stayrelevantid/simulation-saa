@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
@@ -9,12 +10,14 @@
 	let { data }: PageProps = $props();
 
 	async function toggleBookmark(questionId: number) {
-		await fetch('/bookmarks', {
+		const response = await fetch('/bookmarks?/toggleBookmark', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: new URLSearchParams({ action: 'toggleBookmark', questionId: String(questionId) })
+			body: new URLSearchParams({ questionId: String(questionId) })
 		});
-		window.location.reload();
+		if (response.ok) {
+			await invalidateAll();
+		}
 	}
 </script>
 
