@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { Alert, Badge, Button, Card, Checkbox, Input, Label, Select } from 'flowbite-svelte';
+	import { Alert, Badge, Button, Checkbox, Input, Label, Select } from 'flowbite-svelte';
 	import type { PageProps } from './$types';
+	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import SectionCard from '$lib/components/ui/SectionCard.svelte';
 
 	let { data, form }: PageProps = $props();
 
@@ -26,23 +29,20 @@
 	}
 </script>
 
-<div class="mx-auto max-w-3xl space-y-4">
-	<div class="text-center">
-		<h1 class="text-2xl font-bold text-blue-grey-900 dark:text-white">
-			{isWrongMode ? 'Practice Wrong Answers' : 'Start Practice'}
-		</h1>
-		<p class="mt-1 text-sm text-blue-grey-600 dark:text-blue-grey-200">
-			{isWrongMode
-				? 'Review the questions you answered incorrectly, ordered by most frequent mistakes.'
-				: 'Choose how many questions and which topics to focus on. Explanations appear after each answer.'}
-		</p>
-	</div>
+<PageContainer variant="narrow">
+	<PageHeader
+		title={isWrongMode ? 'Practice Wrong Answers' : 'Start Practice'}
+		subtitle={isWrongMode
+			? 'Review the questions you answered incorrectly, ordered by most frequent mistakes.'
+			: 'Choose how many questions and which topics to focus on. Explanations appear after each answer.'}
+		centered
+	/>
 
 	{#if form?.error}
 		<Alert color="red">{form.error}</Alert>
 	{/if}
 
-	<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
+	<SectionCard>
 		<form method="POST" action="?/start" class="space-y-6">
 			<input type="hidden" name="mode" value={data.mode} />
 			<input type="hidden" name="count" value={effectiveCount} />
@@ -57,7 +57,7 @@
 							<Button
 								type="button"
 								size="sm"
-								color={count === preset && customCount === '' ? 'primary' : 'primary'}
+								color="primary"
 								outline={count !== preset || customCount !== ''}
 								onclick={() => selectPreset(preset)}
 							>
@@ -131,5 +131,5 @@
 				{isWrongMode ? 'Start Wrong Answer Practice' : 'Start Practice'}
 			</Button>
 		</form>
-	</Card>
-</div>
+	</SectionCard>
+</PageContainer>
