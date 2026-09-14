@@ -70,6 +70,27 @@
 		/>
 	</section>
 
+	{#if overall.questionsAvailable === 0}
+		<SectionCard variant="warning">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="min-w-0">
+					<h2 class="text-base font-semibold text-yellow-800 dark:text-yellow-200">
+						Your question bank is empty
+					</h2>
+					<p class="mt-1 text-sm text-blue-grey-700 dark:text-blue-grey-200">
+						Generate your first scenario-based questions with the AI Generator to start practicing
+						and taking mock exams.
+					</p>
+				</div>
+				<div class="shrink-0">
+					<Button href={resolve('/ai-generator')} color="primary" size="sm">
+						Go to AI Generator
+					</Button>
+				</div>
+			</div>
+		</SectionCard>
+	{/if}
+
 	{#if !hasActivity}
 		<EmptyState
 			icon="🚀"

@@ -9,13 +9,16 @@ import {
 	selectExamQuestions,
 	saveExamAnswer
 } from '$lib/services/exam.service';
+import { countQuestions } from '$lib/repositories/question.repository';
 import { redirect } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async () => {
 	const [profile] = await db.select().from(examProfiles).where(eq(examProfiles.code, 'SAA-C03'));
 	const activeSession = await getActiveExamSession('SAA-C03');
+	const availableCount = await countQuestions();
 	return {
 		profile: profile ?? null,
+		availableCount,
 		activeSession: activeSession
 			? { id: activeSession.id, remainingSeconds: await getRemainingSeconds(activeSession.id) }
 			: null
@@ -33,7 +36,7 @@ export const actions: Actions = {
 		const questionIds = await selectExamQuestions(profile.id, profile.questionCount);
 		if (questionIds.length < profile.questionCount) {
 			return {
-				error: `Not enough questions in the bank (${questionIds.length}/${profile.questionCount}). Import more questions first.`
+				error: `Not enough questions in the bank (${questionIds.length}/${profile.questionCount}). Generate more questions with the AI Generator.`
 			};
 		}
 

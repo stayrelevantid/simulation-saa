@@ -1,6 +1,13 @@
 import { seedProfile, importQuestions } from '../src/lib/db/seed';
 import { readFileSync } from 'node:fs';
 
+if (process.env.NODE_ENV === 'production') {
+	console.error(
+		'Importing seed questions is not allowed in production. Use the AI Generator instead.'
+	);
+	process.exit(1);
+}
+
 const file = process.argv[2];
 if (!file) {
 	console.error('Usage: npm run questions:import -- <questions.json>');

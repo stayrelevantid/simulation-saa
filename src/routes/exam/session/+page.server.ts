@@ -22,7 +22,7 @@ export const load: PageServerLoad = async () => {
 		if (selectedQuestions.length < profile.questionCount) {
 			throw error(
 				400,
-				`Not enough questions (${selectedQuestions.length}/${profile.questionCount}). Import more questions first.`
+				`Not enough questions (${selectedQuestions.length}/${profile.questionCount}). Generate more questions with the AI Generator.`
 			);
 		}
 		const sessionId = await startExamSession(profile.id, profile.durationMinutes);

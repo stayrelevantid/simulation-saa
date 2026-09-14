@@ -196,6 +196,10 @@ export async function importQuestions(
 }
 
 async function main() {
+	if (process.env.NODE_ENV === 'production') {
+		console.error('Seeding questions is not allowed in production. Use the AI Generator instead.');
+		process.exit(1);
+	}
 	const { profile, domains } = await seedProfile();
 	const existing = await db
 		.select({ id: questions.id })

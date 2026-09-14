@@ -59,6 +59,28 @@
 		</SectionCard>
 	{/if}
 
+	{#if data.profile && data.availableCount < data.profile.questionCount && !data.activeSession}
+		<SectionCard variant="warning">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h2 class="text-base font-semibold text-yellow-800 dark:text-yellow-200">
+						Question bank too small
+					</h2>
+					<p class="mt-1 text-sm text-blue-grey-700 dark:text-blue-grey-200">
+						This exam needs {data.profile.questionCount} questions, but the bank has
+						<strong>{data.availableCount}</strong>. Generate more questions with the AI Generator
+						first.
+					</p>
+				</div>
+				<div class="shrink-0">
+					<Button href={resolve('/ai-generator')} color="primary" size="sm">
+						Go to AI Generator
+					</Button>
+				</div>
+			</div>
+		</SectionCard>
+	{/if}
+
 	{#if data.profile}
 		<SectionCard>
 			<h2 class="mb-4 text-lg font-semibold text-blue-grey-900 dark:text-white">Exam Profile</h2>

@@ -90,7 +90,8 @@ export const actions: Actions = {
 		});
 		if (available === 0) {
 			return fail(400, {
-				error: 'No questions match your selected filters. Broaden your filters and try again.',
+				error:
+					'No questions match your selected filters. Broaden your filters, or generate questions with the AI Generator.',
 				fields: { count: rawCount }
 			});
 		}

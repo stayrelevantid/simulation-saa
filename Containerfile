@@ -26,7 +26,6 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/src/lib/db ./src/lib/db
-COPY --from=builder /app/questions ./questions
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 COPY <<'EOF' /app/entrypoint.sh
