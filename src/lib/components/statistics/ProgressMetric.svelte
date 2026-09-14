@@ -11,7 +11,7 @@
 	);
 </script>
 
-<div class="rounded-lg border border-blue-grey-100 p-3 dark:border-blue-grey-700">
+<div class="rounded-lg border border-blue-grey-100 p-4 dark:border-blue-grey-700">
 	<div class="mb-1 flex items-center justify-between gap-2 text-sm">
 		<span class="min-w-0 truncate font-medium text-blue-grey-800 dark:text-blue-grey-100">
 			{name}
@@ -24,13 +24,13 @@
 			{attempted > 0 ? pct(accuracy) : '–'}
 		</span>
 	</div>
-	<div class="h-2 w-full rounded-full bg-blue-grey-100 dark:bg-blue-grey-700">
+	<div class="mt-2 h-2 w-full rounded-full bg-blue-grey-100 dark:bg-blue-grey-700">
 		<div
 			class="h-2 rounded-full {attempted > 0 ? barColor : ''}"
 			style="width: {attempted > 0 ? Math.round(accuracy * 100) : 0}%"
 		></div>
 	</div>
 	{#if attempted === 0}
-		<p class="mt-1 text-xs text-blue-grey-400 dark:text-blue-grey-300">no data yet</p>
+		<p class="mt-2 text-xs text-blue-grey-400 dark:text-blue-grey-300">no data yet</p>
 	{/if}
 </div>

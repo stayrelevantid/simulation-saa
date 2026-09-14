@@ -1,4 +1,26 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+/**
+ * Selects an answer for the current question and submits it.
+ * Uses the stable `aria-pressed` attribute so it works for both single
+ * choice and multiple response questions, and retries the click in case
+ * it lands before Svelte hydration has attached the handlers.
+ */
+async function answerCurrentQuestion(page: Page) {
+	const option = page.locator('button[aria-pressed]').first();
+	const submit = page.getByRole('button', { name: 'Submit Answer' });
+
+	await expect(async () => {
+		if ((await option.getAttribute('aria-pressed')) !== 'true') {
+			await option.click();
+		}
+		await expect(submit).toBeEnabled({ timeout: 2000 });
+	}).toPass({ timeout: 15000 });
+
+	await submit.click();
+	await expect(page.getByText(/✓ Correct|✗ Incorrect/)).toBeVisible();
+}
 
 test.describe('Scenario 1 — Practice flow', () => {
 	test('open app, start practice with defaults, answer, submit, see explanation', async ({
@@ -26,34 +48,19 @@ test.describe('Scenario 1 — Practice flow', () => {
 
 		await expect(page.getByText(/Question 1 of \d+/)).toBeVisible();
 
-		await page
-			.getByRole('button', { name: /^[A-D]\. / })
-			.first()
-			.click();
-		await page.getByRole('button', { name: 'Submit Answer' }).click();
-
-		await expect(page.getByText(/✓ Correct|✗ Incorrect/)).toBeVisible();
+		await answerCurrentQuestion(page);
 		await expect(page.getByText('Explanation:', { exact: false })).toBeVisible();
 
 		// Answer all remaining questions to reach the summary
 		while (true) {
 			const nextButton = page.getByRole('button', { name: /Finish Practice|Next Question/ });
-			const visible = await nextButton.isVisible();
-			if (!visible) break;
+			if (!(await nextButton.isVisible())) break;
 
 			const isLast = (await nextButton.textContent())?.includes('Finish');
-			if (isLast) {
-				await nextButton.click();
-				break;
-			}
 			await nextButton.click();
+			if (isLast) break;
 
-			await page
-				.getByRole('button', { name: /^[A-D]\. / })
-				.first()
-				.click();
-			await page.getByRole('button', { name: 'Submit Answer' }).click();
-			await expect(page.getByText(/✓ Correct|✗ Incorrect/)).toBeVisible();
+			await answerCurrentQuestion(page);
 		}
 
 		await expect(page.getByText('Practice Complete')).toBeVisible();
