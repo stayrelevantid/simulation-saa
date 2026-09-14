@@ -19,6 +19,10 @@
 		{ href: '/ai-generator', label: 'AI Generator' }
 	];
 
+	function isActive(href: string): boolean {
+		return activeUrl === href || activeUrl.startsWith(href + '/');
+	}
+
 	let activeClass = $derived(
 		'text-teal-700 bg-teal-050 md:bg-transparent md:text-teal-700 dark:text-teal-300 dark:bg-teal-900/40 md:dark:bg-transparent'
 	);
@@ -32,9 +36,9 @@
 	<title>SAA-C03 Practice Lab</title>
 </svelte:head>
 
-<div class="min-h-screen bg-blue-grey-050 dark:bg-blue-grey-900">
+<div class="flex min-h-screen flex-col bg-blue-grey-050 dark:bg-blue-grey-900">
 	<Navbar
-		class="border-b border-blue-grey-100 bg-white dark:border-blue-grey-800 dark:bg-blue-grey-800"
+		class="sticky top-0 z-40 border-b border-blue-grey-100 bg-white dark:border-blue-grey-800 dark:bg-blue-grey-800"
 	>
 		<NavBrand href="/">
 			<span
@@ -44,11 +48,7 @@
 			</span>
 		</NavBrand>
 		<div class="flex items-center md:order-2">
-			<Button
-				href={resolve('/practice')}
-				size="sm"
-				class="me-2 hidden max-md:hidden sm:inline-flex"
-			>
+			<Button href={resolve('/practice')} size="sm" class="hidden sm:inline-flex">
 				Start Practice
 			</Button>
 			<DarkMode />
@@ -56,13 +56,16 @@
 		</div>
 		<NavUl {activeUrl} classes={{ active: activeClass, nonActive: nonActiveClass }}>
 			{#each navItems as item (item.href)}
-				<NavLi href={item.href}>{item.label}</NavLi>
+				{@const active = isActive(item.href)}
+				<NavLi href={item.href} activeClass={active ? activeClass : nonActiveClass}>
+					{item.label}
+				</NavLi>
 			{/each}
 			<NavLi href={resolve('/practice')} class="sm:hidden">Start Practice</NavLi>
 		</NavUl>
 	</Navbar>
 
-	<main class="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-8">
+	<main class="mx-auto w-full max-w-7xl flex-1 px-4 py-5 md:px-6 md:py-6 lg:py-8">
 		{@render children()}
 	</main>
 </div>
