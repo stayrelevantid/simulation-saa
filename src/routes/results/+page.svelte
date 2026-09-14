@@ -48,7 +48,7 @@
 						</p>
 					</div>
 					<Button
-						href={`/results/${item.id}/review`}
+						href={`/results/${item.id}`}
 						size="sm"
 						color="primary"
 						outline

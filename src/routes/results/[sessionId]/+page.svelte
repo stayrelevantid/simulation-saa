@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { Button } from 'flowbite-svelte';
-	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import SectionCard from '$lib/components/ui/SectionCard.svelte';
+	import ExamReviewList from '$lib/components/exam/ExamReviewList.svelte';
 
 	let { data }: PageProps = $props();
 
@@ -14,11 +14,15 @@
 	const incorrectCount = $derived(session.incorrectCount ?? 0);
 </script>
 
-<PageContainer variant="narrow">
-	<SectionCard padding="large" class="text-center">
-		<h1 class="mb-1 text-xl font-semibold text-blue-grey-900 dark:text-white">
-			{profile?.code ?? 'Exam'} Mock Exam
-		</h1>
+<PageContainer variant="reading">
+	<PageHeader
+		title="Exam Result"
+		subtitle="SAA-C03 Mock #{session.id}"
+		backHref="/results"
+		backLabel="Back to Exam History"
+	/>
+
+	<SectionCard padding="large" class="w-full text-center">
 		<p class="mb-6 text-xs text-blue-grey-400 dark:text-blue-grey-300">
 			Estimated / Simulated Score — not an official AWS score
 		</p>
@@ -64,18 +68,14 @@
 		</div>
 
 		{#if profile}
-			<p class="mb-6 text-xs text-blue-grey-500 dark:text-blue-grey-300">
+			<p class="text-xs text-blue-grey-500 dark:text-blue-grey-300">
 				Passing score: {profile.passingScore} ·
 				{passed
 					? `You scored ${session.score} (${(session.score ?? 0) - profile.passingScore} above passing)`
 					: `You scored ${session.score} (${profile.passingScore - (session.score ?? 0)} below passing)`}
 			</p>
 		{/if}
-
-		<div class="flex flex-col justify-center gap-3 sm:flex-row">
-			<Button href={`/results/${session.id}/review`} color="primary">Review Exam</Button>
-			<Button href={resolve('/exam')} color="primary" outline>New Mock Exam</Button>
-			<Button href={resolve('/')} color="primary" outline>Dashboard</Button>
-		</div>
 	</SectionCard>
+
+	<ExamReviewList questions={data.questions} counts={data.counts} />
 </PageContainer>
