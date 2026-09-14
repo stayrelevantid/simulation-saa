@@ -13,22 +13,35 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const mode = String(formData.get('mode') ?? 'practice') as 'practice' | 'wrong';
 
-		const count = Number(formData.get('count') ?? '10');
+		const rawCount = String(formData.get('count') ?? '10');
+		const count = Number(rawCount);
 		if (!count || count < 1 || count > 100) {
 			return fail(400, { error: 'Question count must be between 1 and 100.' });
 		}
 
 		const domainId = formData.get('domainId') ? Number(formData.get('domainId')) : undefined;
-		const difficulty = (formData.get('difficulty') as string) || undefined;
-		const questionType = (formData.get('questionType') as string) || undefined;
+
+		const difficulties = formData.getAll('difficulty').map(String).filter(Boolean);
+		if (difficulties.length > 1) {
+			return fail(400, {
+				error: 'Select one difficulty level for now, or leave all unchecked for any level.'
+			});
+		}
+
+		const questionTypes = formData.getAll('questionType').map(String).filter(Boolean);
+		if (questionTypes.length > 1) {
+			return fail(400, {
+				error: 'Select one question type for now, or leave all unchecked for any type.'
+			});
+		}
 
 		const params = new URLSearchParams({
 			count: String(count),
 			mode
 		});
 		if (domainId) params.set('domain', String(domainId));
-		if (difficulty) params.set('difficulty', difficulty);
-		if (questionType) params.set('type', questionType);
+		if (difficulties.length === 1) params.set('difficulty', difficulties[0]);
+		if (questionTypes.length === 1) params.set('type', questionTypes[0]);
 
 		throw redirect(303, `/practice/session?${params.toString()}`);
 	}
