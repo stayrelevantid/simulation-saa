@@ -63,6 +63,11 @@ export async function listQuestions(filters: QuestionFilters = {}): Promise<Ques
 	if (filters.questionType) conditions.push(eq(questions.questionType, filters.questionType));
 	if (filters.search) conditions.push(like(questions.questionText, `%${filters.search}%`));
 	if (filters.bookmarkedOnly) conditions.push(sql`${bookmarks.id} IS NOT NULL`);
+	if (filters.service) {
+		conditions.push(
+			sql`EXISTS (SELECT 1 FROM ${questionServices} qs WHERE qs.question_id = ${questions.id} AND qs.service_name = ${filters.service})`
+		);
+	}
 
 	let query = db
 		.select({
@@ -109,6 +114,11 @@ export async function countQuestions(filters: QuestionFilters = {}): Promise<num
 	if (filters.questionType) conditions.push(eq(questions.questionType, filters.questionType));
 	if (filters.search) conditions.push(like(questions.questionText, `%${filters.search}%`));
 	if (filters.bookmarkedOnly) conditions.push(sql`${bookmarks.id} IS NOT NULL`);
+	if (filters.service) {
+		conditions.push(
+			sql`EXISTS (SELECT 1 FROM ${questionServices} qs WHERE qs.question_id = ${questions.id} AND qs.service_name = ${filters.service})`
+		);
+	}
 
 	let query = db
 		.select({ count: sql<number>`count(*)` })
