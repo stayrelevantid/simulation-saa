@@ -32,8 +32,8 @@ export interface SelectedQuestion {
 export interface SelectionConfig {
 	count: number;
 	domainId?: number;
-	difficulty?: Difficulty;
-	questionType?: QuestionType;
+	difficulty?: Difficulty[];
+	questionType?: QuestionType[];
 	excludeIds?: number[];
 }
 
@@ -54,8 +54,12 @@ export async function selectQuestions(config: SelectionConfig): Promise<Selected
 	const conditions = [];
 
 	if (config.domainId) conditions.push(eq(questions.domainId, config.domainId));
-	if (config.difficulty) conditions.push(eq(questions.difficulty, config.difficulty));
-	if (config.questionType) conditions.push(eq(questions.questionType, config.questionType));
+	if (config.difficulty && config.difficulty.length > 0) {
+		conditions.push(inArray(questions.difficulty, config.difficulty));
+	}
+	if (config.questionType && config.questionType.length > 0) {
+		conditions.push(inArray(questions.questionType, config.questionType));
+	}
 	if (config.excludeIds && config.excludeIds.length > 0) {
 		conditions.push(sql`${questions.id} NOT IN ${config.excludeIds}`);
 	}
@@ -168,6 +172,39 @@ export async function createPracticeSession(config: PracticeConfig): Promise<num
 export async function getPracticeSession(sessionId: number) {
 	const [session] = await db.select().from(examSessions).where(eq(examSessions.id, sessionId));
 	return session ?? null;
+}
+
+export async function countAvailableQuestions(
+	config: Omit<SelectionConfig, 'count' | 'excludeIds'>
+): Promise<number> {
+	const conditions = [];
+
+	if (config.domainId) conditions.push(eq(questions.domainId, config.domainId));
+	if (config.difficulty && config.difficulty.length > 0) {
+		conditions.push(inArray(questions.difficulty, config.difficulty));
+	}
+	if (config.questionType && config.questionType.length > 0) {
+		conditions.push(inArray(questions.questionType, config.questionType));
+	}
+
+	let query = db
+		.select({ count: sql<number>`count(*)` })
+		.from(questions)
+		.innerJoin(examDomains, eq(questions.domainId, examDomains.id))
+		.$dynamic();
+
+	if (conditions.length > 0) query = query.where(and(...conditions));
+
+	const [row] = await query;
+	return row?.count ?? 0;
+}
+
+export async function countWrongQuestions(): Promise<number> {
+	const [row] = await db
+		.select({ count: sql<number>`count(DISTINCT ${examAnswers.questionId})` })
+		.from(examAnswers)
+		.where(eq(examAnswers.isCorrect, false));
+	return row?.count ?? 0;
 }
 
 export { shuffle };

@@ -17,11 +17,14 @@ export const load: PageServerLoad = async ({ url }) => {
 		questions = await selectWrongQuestions(50);
 	} else {
 		const count = Number(params.get('count') ?? '10') || 10;
+		const difficulties = params.getAll('difficulty') as Difficulty[];
+		const questionTypes = params.getAll('type') as QuestionType[];
+
 		questions = await selectQuestions({
 			count,
 			domainId: params.get('domain') ? Number(params.get('domain')) : undefined,
-			difficulty: (params.get('difficulty') as Difficulty) || undefined,
-			questionType: (params.get('type') as QuestionType) || undefined
+			difficulty: difficulties.length > 0 ? difficulties : undefined,
+			questionType: questionTypes.length > 0 ? questionTypes : undefined
 		});
 	}
 
