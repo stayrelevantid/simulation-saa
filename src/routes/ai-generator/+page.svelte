@@ -8,6 +8,7 @@
 	import QuestionOptions from '$lib/components/question/QuestionOptions.svelte';
 	import QuestionExplanation from '$lib/components/question/QuestionExplanation.svelte';
 	import ModelPicker from '$lib/components/ai/ModelPicker.svelte';
+	import ServicePicker from '$lib/components/ai/ServicePicker.svelte';
 	import type { PageProps } from './$types';
 	import type { AIModel, GeneratedQuestion } from '$lib/ai/provider';
 
@@ -21,7 +22,7 @@
 	let difficulty = $state<string[]>(['medium', 'hard']);
 	let questionTypes = $state<string[]>(['single', 'multiple']);
 	let selectedDomains = $state<string[]>([]);
-	let awsServices = $state('');
+	let selectedServices = $state<string[]>([]);
 
 	let generating = $state(false);
 	let validating = $state(false);
@@ -96,10 +97,7 @@
 					difficulty,
 					questionTypes,
 					domains: selectedDomains,
-					awsServices: awsServices
-						.split(',')
-						.map((s) => s.trim())
-						.filter(Boolean)
+					awsServices: selectedServices.length > 0 ? selectedServices : undefined
 				})
 			});
 			const payload = await response.json();
@@ -248,7 +246,10 @@
 					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
 						AWS Services <span class="font-normal text-blue-grey-400">(optional)</span>
 					</Label>
-					<Input bind:value={awsServices} placeholder="Auto" />
+					<ServicePicker
+						selected={selectedServices}
+						onchange={(services) => (selectedServices = services)}
+					/>
 				</div>
 			</div>
 
