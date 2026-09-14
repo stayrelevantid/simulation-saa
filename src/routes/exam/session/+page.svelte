@@ -1,7 +1,10 @@
 <script lang="ts">
-	import { Alert, Badge, Button, Card, Modal, Spinner } from 'flowbite-svelte';
+	import { Badge, Button, Modal, Spinner } from 'flowbite-svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import type { PageProps } from './$types';
+	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import SectionCard from '$lib/components/ui/SectionCard.svelte';
+	import QuestionOptions from '$lib/components/question/QuestionOptions.svelte';
 	import { QUESTION_TYPE_LABELS } from '$lib/types/question';
 
 	let { data }: PageProps = $props();
@@ -162,9 +165,9 @@
 	}
 </script>
 
-<div class="mx-auto max-w-4xl space-y-4">
+<PageContainer variant="reading">
 	<div
-		class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-grey-100 bg-white p-3 shadow-sm sm:flex-nowrap dark:border-blue-grey-700 dark:bg-blue-grey-800"
+		class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-grey-100 bg-white p-4 shadow-sm sm:flex-nowrap dark:border-blue-grey-700 dark:bg-blue-grey-800"
 	>
 		<div class="flex items-center gap-3">
 			<span class="text-sm font-medium text-blue-grey-600 dark:text-blue-grey-200">
@@ -188,92 +191,87 @@
 	</div>
 
 	{#if loading}
-		<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
+		<SectionCard>
 			<div
-				class="flex items-center justify-center gap-3 p-6 text-blue-grey-500 dark:text-blue-grey-300"
+				class="flex items-center justify-center gap-3 p-8 text-blue-grey-500 dark:text-blue-grey-300"
 			>
 				<Spinner size="6" /> Loading questions...
 			</div>
-		</Card>
+		</SectionCard>
 	{:else if loadError}
-		<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
-			<Alert color="red">
-				{loadError}
-				<div class="mt-2">
-					<Button size="sm" color="red" onclick={loadQuestions}>Retry</Button>
-				</div>
-			</Alert>
-		</Card>
+		<SectionCard variant="danger">
+			<p class="text-sm text-red-700 dark:text-red-300">{loadError}</p>
+			<div class="mt-3">
+				<Button size="sm" color="red" onclick={loadQuestions}>Retry</Button>
+			</div>
+		</SectionCard>
 	{:else if question}
-		<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
-			<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-				<Badge color={question.questionType === 'single' ? 'gray' : 'purple'}>
-					{QUESTION_TYPE_LABELS[question.questionType as 'single' | 'multiple']}
-				</Badge>
-				<Button
-					size="xs"
-					color={answers[question.id]?.flagged ? 'yellow' : 'primary'}
-					outline={!answers[question.id]?.flagged}
-					onclick={toggleFlag}
-				>
-					{answers[question.id]?.flagged ? '⚑ Flagged' : '⚐ Flag'}
-				</Button>
-			</div>
-
-			<p class="whitespace-pre-line text-blue-grey-900 dark:text-white">
-				{question.questionText}
-			</p>
-
-			{#if question.questionType === 'multiple'}
-				<p class="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">
-					Select all that apply
-				</p>
-			{/if}
-
-			<div class="mt-5 space-y-2">
-				{#each question.options as option (option.optionKey)}
-					{@const isSelected = (answers[question.id]?.selected ?? []).includes(option.optionKey)}
-					<button
-						type="button"
-						class="w-full rounded-lg border p-3 text-left transition-colors
-							{isSelected
-							? 'border-teal-500 bg-teal-050 dark:border-teal-500 dark:bg-teal-900/40'
-							: 'border-blue-grey-200 hover:border-teal-400 dark:border-blue-grey-700 dark:hover:border-teal-600'}"
-						onclick={() => toggleOption(option.optionKey)}
-						aria-pressed={isSelected}
+		<SectionCard padding="default">
+			<div class="border-t-4 border-teal-500 pt-4">
+				<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+					<Badge color={question.questionType === 'single' ? 'gray' : 'purple'}>
+						{QUESTION_TYPE_LABELS[question.questionType as 'single' | 'multiple']}
+					</Badge>
+					<Button
+						size="xs"
+						color={answers[question.id]?.flagged ? 'yellow' : 'primary'}
+						outline={!answers[question.id]?.flagged}
+						onclick={toggleFlag}
 					>
-						<span class="font-bold text-blue-grey-900 dark:text-white">
-							{#if question.questionType === 'multiple'}{isSelected ? '☑' : '☐'}{/if}
-							{option.optionKey}.
-						</span>
-						<span class="ml-1 text-blue-grey-800 dark:text-blue-grey-100">{option.optionText}</span>
-					</button>
-				{/each}
-			</div>
+						{answers[question.id]?.flagged ? '⚑ Flagged' : '⚐ Flag'}
+					</Button>
+				</div>
 
-			<div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-between">
-				<Button
-					color="primary"
-					outline
-					disabled={current === 0}
-					onclick={() => goTo(current - 1)}
-					class="w-full sm:w-auto"
-				>
-					← Previous
-				</Button>
-				{#if current === total - 1}
-					<Button color="primary" onclick={() => (showSubmitModal = true)} class="w-full sm:w-auto">
-						Submit Exam
-					</Button>
-				{:else}
-					<Button color="primary" onclick={() => goTo(current + 1)} class="w-full sm:w-auto">
-						Next →
-					</Button>
+				<p class="leading-7 whitespace-pre-line text-blue-grey-900 dark:text-white">
+					{question.questionText}
+				</p>
+
+				{#if question.questionType === 'multiple'}
+					<p class="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">
+						Select all that apply
+					</p>
 				{/if}
+
+				<div class="mt-4">
+					<QuestionOptions
+						options={question.options.map((o) => ({
+							optionKey: o.optionKey,
+							optionText: o.optionText
+						}))}
+						questionType={question.questionType as 'single' | 'multiple'}
+						selected={answers[question.id]?.selected ?? []}
+						onSelect={toggleOption}
+					/>
+				</div>
+
+				<div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-between">
+					<Button
+						color="primary"
+						outline
+						disabled={current === 0}
+						onclick={() => goTo(current - 1)}
+						class="w-full sm:w-auto"
+					>
+						← Previous
+					</Button>
+					{#if current === total - 1}
+						<Button
+							color="primary"
+							onclick={() => (showSubmitModal = true)}
+							class="w-full sm:w-auto"
+						>
+							Submit Exam
+						</Button>
+					{:else}
+						<Button color="primary" onclick={() => goTo(current + 1)} class="w-full sm:w-auto">
+							Next →
+						</Button>
+					{/if}
+				</div>
 			</div>
-		</Card>
+		</SectionCard>
 	{/if}
-</div>
+</PageContainer>
 
 <Modal bind:open={showSubmitModal} title="Submit Exam?">
 	<div class="space-y-2 text-sm text-blue-grey-700 dark:text-blue-grey-200">
