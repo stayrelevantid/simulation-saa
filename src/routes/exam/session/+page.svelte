@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Badge, Button, Card, Modal } from 'flowbite-svelte';
+	import { Alert, Badge, Button, Card, Modal, Spinner } from 'flowbite-svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import type { PageProps } from './$types';
 	import { QUESTION_TYPE_LABELS } from '$lib/types/question';
@@ -28,6 +28,9 @@
 	let showSubmitModal = $state(false);
 	let submitting = $state(false);
 	let navigatorOpen = $state(false);
+	let loading = $state(true);
+	let loadError = $state('');
+	let saving = $state(false);
 
 	let timerInterval: ReturnType<typeof setInterval> | undefined;
 
@@ -45,13 +48,35 @@
 		return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 	});
 
-	onMount(async () => {
-		const response = await fetch('/api/exam/questions');
-		if (response.ok) {
+	const timerColor = $derived(
+		remainingSeconds < 60
+			? 'text-red-600 dark:text-red-300'
+			: remainingSeconds < 300
+				? 'text-yellow-600 dark:text-yellow-300'
+				: 'text-blue-grey-900 dark:text-white'
+	);
+
+	async function loadQuestions() {
+		loading = true;
+		loadError = '';
+		try {
+			const response = await fetch('/api/exam/questions');
+			if (!response.ok) {
+				loadError = 'Unable to load exam questions.';
+				return;
+			}
 			const payload = await response.json();
 			questions = payload.questions;
 			answers = payload.answers;
+		} catch {
+			loadError = 'Unable to load exam questions.';
+		} finally {
+			loading = false;
 		}
+	}
+
+	onMount(async () => {
+		await loadQuestions();
 
 		timerInterval = setInterval(() => {
 			timerStarted = true;
@@ -90,11 +115,16 @@
 	}
 
 	async function saveAnswer(questionId: number, selected: string[], flagged: boolean) {
-		await fetch('/api/exam/answer', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId, questionId, selected, flag: flagged })
-		});
+		saving = true;
+		try {
+			await fetch('/api/exam/answer', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ sessionId, questionId, selected, flag: flagged })
+			});
+		} finally {
+			saving = false;
+		}
 	}
 
 	function goTo(index: number) {
@@ -106,59 +136,83 @@
 
 	async function submitExam() {
 		submitting = true;
-		await fetch('/api/exam/submit', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId })
-		});
-		window.location.href = `/results/${sessionId}`;
+		try {
+			await fetch('/api/exam/submit', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ sessionId })
+			});
+		} finally {
+			window.location.href = `/results/${sessionId}`;
+		}
 	}
 
 	async function autoSubmit() {
 		if (submitting) return;
 		submitting = true;
-		await fetch('/api/exam/submit', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId })
-		});
-		window.location.href = `/results/${sessionId}`;
+		try {
+			await fetch('/api/exam/submit', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ sessionId })
+			});
+		} finally {
+			window.location.href = `/results/${sessionId}`;
+		}
 	}
 </script>
 
 <div class="mx-auto max-w-4xl space-y-4">
 	<div
-		class="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
+		class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-grey-100 bg-white p-3 shadow-sm sm:flex-nowrap dark:border-blue-grey-700 dark:bg-blue-grey-800"
 	>
 		<div class="flex items-center gap-3">
-			<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
+			<span class="text-sm font-medium text-blue-grey-600 dark:text-blue-grey-200">
 				Question {current + 1} / {total}
 			</span>
 			<Badge color="blue">{question?.domainName ?? ''}</Badge>
+			{#if saving}
+				<span class="hidden items-center gap-1 text-xs text-blue-grey-400 sm:flex">
+					<Spinner size="4" /> Saving...
+				</span>
+			{/if}
 		</div>
 		<div class="flex items-center gap-3">
-			<span
-				class="font-mono text-lg font-bold {remainingSeconds < 300
-					? 'text-red-600 dark:text-red-400'
-					: 'text-gray-900 dark:text-white'}"
-			>
+			<span class="font-mono text-lg font-bold {timerColor}">
 				{timeDisplay}
 			</span>
-			<Button size="sm" color="gray" onclick={() => (navigatorOpen = true)}>
+			<Button size="sm" color="primary" outline onclick={() => (navigatorOpen = true)}>
 				Navigator ({answeredCount}/{total})
 			</Button>
 		</div>
 	</div>
 
-	{#if question}
-		<Card>
-			<div class="mb-3 flex items-center justify-between">
+	{#if loading}
+		<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
+			<div
+				class="flex items-center justify-center gap-3 p-6 text-blue-grey-500 dark:text-blue-grey-300"
+			>
+				<Spinner size="6" /> Loading questions...
+			</div>
+		</Card>
+	{:else if loadError}
+		<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
+			<Alert color="red">
+				{loadError}
+				<div class="mt-2">
+					<Button size="sm" color="red" onclick={loadQuestions}>Retry</Button>
+				</div>
+			</Alert>
+		</Card>
+	{:else if question}
+		<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
+			<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
 				<Badge color={question.questionType === 'single' ? 'gray' : 'purple'}>
 					{QUESTION_TYPE_LABELS[question.questionType as 'single' | 'multiple']}
 				</Badge>
 				<Button
 					size="xs"
-					color={answers[question.id]?.flagged ? 'yellow' : 'gray'}
+					color={answers[question.id]?.flagged ? 'yellow' : 'primary'}
 					outline={!answers[question.id]?.flagged}
 					onclick={toggleFlag}
 				>
@@ -166,83 +220,107 @@
 				</Button>
 			</div>
 
-			<p class="whitespace-pre-line text-gray-900 dark:text-white">{question.questionText}</p>
+			<p class="whitespace-pre-line text-blue-grey-900 dark:text-white">
+				{question.questionText}
+			</p>
 
 			{#if question.questionType === 'multiple'}
-				<p class="mt-2 text-xs font-medium text-orange-600 dark:text-orange-400">
+				<p class="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">
 					Select all that apply
 				</p>
 			{/if}
 
 			<div class="mt-5 space-y-2">
 				{#each question.options as option (option.optionKey)}
+					{@const isSelected = (answers[question.id]?.selected ?? []).includes(option.optionKey)}
 					<button
 						type="button"
 						class="w-full rounded-lg border p-3 text-left transition-colors
-							{(answers[question.id]?.selected ?? []).includes(option.optionKey)
-							? 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40'
-							: 'border-gray-200 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500'}"
+							{isSelected
+							? 'border-teal-500 bg-teal-050 dark:border-teal-500 dark:bg-teal-900/40'
+							: 'border-blue-grey-200 hover:border-teal-400 dark:border-blue-grey-700 dark:hover:border-teal-600'}"
 						onclick={() => toggleOption(option.optionKey)}
+						aria-pressed={isSelected}
 					>
-						<span class="font-bold">{option.optionKey}.</span>
-						<span class="ml-1">{option.optionText}</span>
+						<span class="font-bold text-blue-grey-900 dark:text-white">
+							{#if question.questionType === 'multiple'}{isSelected ? '☑' : '☐'}{/if}
+							{option.optionKey}.
+						</span>
+						<span class="ml-1 text-blue-grey-800 dark:text-blue-grey-100">{option.optionText}</span>
 					</button>
 				{/each}
 			</div>
 
-			<div class="mt-5 flex justify-between">
-				<Button color="gray" outline disabled={current === 0} onclick={() => goTo(current - 1)}>
+			<div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-between">
+				<Button
+					color="primary"
+					outline
+					disabled={current === 0}
+					onclick={() => goTo(current - 1)}
+					class="w-full sm:w-auto"
+				>
 					← Previous
 				</Button>
 				{#if current === total - 1}
-					<Button color="green" onclick={() => (showSubmitModal = true)}>Submit Exam</Button>
+					<Button color="primary" onclick={() => (showSubmitModal = true)} class="w-full sm:w-auto">
+						Submit Exam
+					</Button>
 				{:else}
-					<Button color="primary" onclick={() => goTo(current + 1)}>Next →</Button>
+					<Button color="primary" onclick={() => goTo(current + 1)} class="w-full sm:w-auto">
+						Next →
+					</Button>
 				{/if}
 			</div>
 		</Card>
-	{:else}
-		<Card><p class="text-gray-500">Loading questions...</p></Card>
 	{/if}
 </div>
 
 <Modal bind:open={showSubmitModal} title="Submit Exam?">
-	<div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+	<div class="space-y-2 text-sm text-blue-grey-700 dark:text-blue-grey-200">
 		<p>Answered: <strong>{answeredCount} / {total}</strong></p>
 		<p>Unanswered: <strong>{total - answeredCount}</strong></p>
 		<p>Flagged: <strong>{flaggedCount}</strong></p>
 	</div>
 	<div class="mt-5 flex justify-end gap-2">
-		<Button color="gray" onclick={() => (showSubmitModal = false)}>Cancel</Button>
-		<Button color="green" disabled={submitting} onclick={submitExam}>
+		<Button color="primary" outline onclick={() => (showSubmitModal = false)}>Cancel</Button>
+		<Button color="primary" disabled={submitting} onclick={submitExam}>
 			{submitting ? 'Submitting...' : 'Submit Exam'}
 		</Button>
 	</div>
 </Modal>
 
 <Modal bind:open={navigatorOpen} title="Question Navigator">
-	<div class="grid grid-cols-8 gap-2">
-		{#each questions as q, i (q.id)}
-			{@const entry = answers[q.id]}
-			<button
-				type="button"
-				class="flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-medium
-					{current === i
-					? 'border-blue-600 bg-blue-600 text-white'
-					: entry?.flagged
-						? 'border-yellow-500 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
-						: entry && entry.selected.length > 0
-							? 'border-green-500 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
-							: 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'}"
-				onclick={() => goTo(i)}
-			>
-				{String(i + 1).padStart(2, '0')}
-			</button>
-		{/each}
+	<div class="max-h-[60vh] overflow-y-auto">
+		<div class="grid grid-cols-5 gap-2 sm:grid-cols-8">
+			{#each questions as q, i (q.id)}
+				{@const entry = answers[q.id]}
+				<button
+					type="button"
+					class="flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-medium
+						{current === i
+						? 'border-teal-600 bg-teal-600 text-white'
+						: entry?.flagged
+							? 'border-yellow-500 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
+							: entry && entry.selected.length > 0
+								? 'border-teal-400 bg-teal-050 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200'
+								: 'border-blue-grey-300 text-blue-grey-500 dark:border-blue-grey-600 dark:text-blue-grey-300'}"
+					onclick={() => goTo(i)}
+				>
+					{String(i + 1).padStart(2, '0')}
+				</button>
+			{/each}
+		</div>
 	</div>
-	<div class="mt-4 flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-		<span>■ Answered</span>
-		<span class="text-yellow-600 dark:text-yellow-400">■ Flagged</span>
-		<span>□ Unanswered</span>
+	<div class="mt-4 flex flex-wrap gap-4 text-xs text-blue-grey-500 dark:text-blue-grey-300">
+		<span class="flex items-center gap-1">
+			<span class="inline-block h-3 w-3 rounded border border-teal-400 bg-teal-050"></span> Answered
+		</span>
+		<span class="flex items-center gap-1">
+			<span class="inline-block h-3 w-3 rounded border border-yellow-500 bg-yellow-100"></span>
+			Flagged
+		</span>
+		<span class="flex items-center gap-1">
+			<span class="inline-block h-3 w-3 rounded border border-blue-grey-300"></span> Unanswered
+		</span>
 	</div>
 </Modal>

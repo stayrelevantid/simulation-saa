@@ -20,8 +20,7 @@ test.describe('Scenario 2 — Mock exam with restore', () => {
 		).toBeVisible();
 
 		await page
-			.locator('button')
-			.filter({ hasText: /^[A-D]\./ })
+			.getByRole('button', { name: /^[A-D]\. / })
 			.first()
 			.click();
 		await expect(page.getByRole('button', { name: 'Navigator (' })).toContainText('1/65', {

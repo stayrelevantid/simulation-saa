@@ -14,8 +14,7 @@ test.describe('Scenario 1 — Practice flow', () => {
 		await expect(page.getByText(/Question 1 of \d+/)).toBeVisible();
 
 		await page
-			.locator('button')
-			.filter({ hasText: /^[A-D]\./ })
+			.getByRole('button', { name: /^[A-D]\. / })
 			.first()
 			.click();
 		await page.getByRole('button', { name: 'Submit Answer' }).click();
@@ -37,8 +36,7 @@ test.describe('Scenario 1 — Practice flow', () => {
 			await nextButton.click();
 
 			await page
-				.locator('button')
-				.filter({ hasText: /^[A-D]\./ })
+				.getByRole('button', { name: /^[A-D]\. / })
 				.first()
 				.click();
 			await page.getByRole('button', { name: 'Submit Answer' }).click();
