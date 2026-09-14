@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge, Button, Modal, Spinner } from 'flowbite-svelte';
 	import { onMount, onDestroy } from 'svelte';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import type { PageProps } from './$types';
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
 	import SectionCard from '$lib/components/ui/SectionCard.svelte';
@@ -10,6 +11,40 @@
 	let { data }: PageProps = $props();
 
 	const sessionId = $derived(data.sessionId);
+
+	// Leave guard: prompt when the user tries to leave an in-progress exam
+	let examActive = $state(true);
+	let leaveTarget = $state<URL | null>(null);
+	let leavePromptOpen = $state(false);
+
+	beforeNavigate((nav) => {
+		if (!examActive || nav.willUnload) return;
+		const target = nav.to?.url;
+		if (target && target.pathname !== window.location.pathname) {
+			nav.cancel();
+			leaveTarget = target;
+			leavePromptOpen = true;
+		}
+	});
+
+	function onBeforeUnload(event: BeforeUnloadEvent) {
+		if (!examActive) return;
+		event.preventDefault();
+		event.returnValue = '';
+	}
+
+	function stayInExam() {
+		leavePromptOpen = false;
+		leaveTarget = null;
+	}
+
+	function leaveExam() {
+		if (!leaveTarget) return;
+		const target = leaveTarget.pathname + leaveTarget.search + leaveTarget.hash;
+		leavePromptOpen = false;
+		examActive = false;
+		goto(target);
+	}
 
 	let questions = $state<
 		{
@@ -139,6 +174,7 @@
 
 	async function submitExam() {
 		submitting = true;
+		examActive = false;
 		try {
 			await fetch('/api/exam/submit', {
 				method: 'POST',
@@ -153,6 +189,7 @@
 	async function autoSubmit() {
 		if (submitting) return;
 		submitting = true;
+		examActive = false;
 		try {
 			await fetch('/api/exam/submit', {
 				method: 'POST',
@@ -164,6 +201,8 @@
 		}
 	}
 </script>
+
+<svelte:window onbeforeunload={onBeforeUnload} />
 
 <PageContainer variant="reading">
 	<div
@@ -272,6 +311,17 @@
 		</SectionCard>
 	{/if}
 </PageContainer>
+
+<Modal bind:open={leavePromptOpen} title="Leave exam?">
+	<p class="text-sm leading-relaxed text-blue-grey-700 dark:text-blue-grey-200">
+		You have an exam in progress. Leaving will <strong>not</strong> auto-submit your exam — your answers
+		are already saved and the timer keeps running so you can resume later.
+	</p>
+	<div class="mt-5 flex justify-end gap-2">
+		<Button color="primary" outline onclick={stayInExam}>Stay in Exam</Button>
+		<Button color="red" onclick={leaveExam}>Leave Exam</Button>
+	</div>
+</Modal>
 
 <Modal bind:open={showSubmitModal} title="Submit Exam?">
 	<div class="space-y-2 text-sm text-blue-grey-700 dark:text-blue-grey-200">
