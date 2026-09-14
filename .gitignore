@@ -49,3 +49,6 @@ npm-debug.log*
 !.vscode/extensions.json
 .idea
 *.swp
+
+# Generated E2E test bank
+questions/test-bank.json

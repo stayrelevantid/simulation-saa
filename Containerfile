@@ -33,7 +33,10 @@ COPY <<'EOF' /app/entrypoint.sh
 #!/bin/sh
 set -e
 npx drizzle-kit migrate
-node --import tsx src/lib/db/seed.ts
+# Bootstrap only exam configuration (profile, domains, blueprints).
+# The question bank intentionally starts empty — import questions via the
+# UI or `npm run questions:import`.
+node --import tsx src/lib/db/bootstrap.ts
 exec node build
 EOF
 RUN chmod +x /app/entrypoint.sh
