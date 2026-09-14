@@ -171,7 +171,7 @@
 </script>
 
 <div class="mx-auto max-w-4xl space-y-4">
-	<h1 class="text-2xl font-bold text-gray-900 dark:text-white">AI Question Generator</h1>
+	<h1 class="text-2xl font-bold text-blue-grey-900 dark:text-white">AI Question Generator</h1>
 
 	<Card>
 		<form
@@ -189,7 +189,7 @@
 				<div>
 					<Label class="mb-1 block">AI Model</Label>
 					{#if loadingModels}
-						<div class="flex items-center gap-2 text-sm text-gray-500">
+						<div class="flex items-center gap-2 text-sm text-blue-grey-500">
 							<Spinner size="4" /> Loading models...
 						</div>
 					{:else if modelsError}
@@ -282,7 +282,9 @@
 
 	{#if generating || validating}
 		<Card>
-			<div class="flex items-center justify-center gap-3 p-6 text-gray-500 dark:text-gray-400">
+			<div
+				class="flex items-center justify-center gap-3 p-6 text-blue-grey-500 dark:text-blue-grey-300"
+			>
 				<Spinner size="6" />
 				{generating
 					? 'Generating questions via OpenCode Go...'
@@ -294,11 +296,11 @@
 	{#if !generating && !validating && (validQuestions.length > 0 || needReview.length > 0)}
 		<Card>
 			<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-				<h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+				<h2 class="text-lg font-semibold text-blue-grey-900 dark:text-white">
 					{rawQuestions.length} Questions Generated
 				</h2>
 				<div class="flex gap-2">
-					<Badge color="green">✓ {validQuestions.length} Valid</Badge>
+					<Badge color="primary">✓ {validQuestions.length} Valid</Badge>
 					{#if needReview.length > 0}
 						<Badge color="yellow">⚠ {needReview.length} Need Review</Badge>
 					{/if}
@@ -309,7 +311,7 @@
 				<div class="mb-4 flex flex-wrap gap-2">
 					<Button
 						size="sm"
-						color={previewSource === 'valid' ? 'green' : 'gray'}
+						color={previewSource === 'valid' ? 'primary' : 'gray'}
 						outline={previewSource !== 'valid'}
 						onclick={() => {
 							previewSource = 'valid';
@@ -338,7 +340,7 @@
 						type="button"
 						class="h-8 w-8 rounded text-xs font-medium {previewIndex === i
 							? 'bg-blue-600 text-white'
-							: 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}"
+							: 'bg-blue-grey-100 text-blue-grey-600 hover:bg-blue-grey-200 dark:bg-blue-grey-700 dark:text-blue-grey-200'}"
 						onclick={() => (previewIndex = i)}
 					>
 						{i + 1}
@@ -378,35 +380,37 @@
 						{/each}
 					</div>
 
-					<p class="whitespace-pre-line text-gray-900 dark:text-white">{currentPreview.question}</p>
+					<p class="whitespace-pre-line text-blue-grey-900 dark:text-white">
+						{currentPreview.question}
+					</p>
 
 					<div class="space-y-2">
 						{#each currentPreview.options as option (option.key)}
 							<div
 								class="rounded-lg border p-3 {option.correct
 									? 'border-green-500 bg-green-50 dark:border-green-600 dark:bg-green-950/40'
-									: 'border-gray-200 dark:border-gray-700'}"
+									: 'border-blue-grey-200 dark:border-blue-grey-700'}"
 							>
 								<span class="font-bold">{option.key}.</span>
 								<span class="ml-1">{option.text}</span>
 								{#if option.correct}
 									<Badge color="green" class="float-right">Correct</Badge>
 								{/if}
-								<p class="mt-1 pl-5 text-xs text-gray-600 dark:text-gray-400">
+								<p class="mt-1 pl-5 text-xs text-blue-grey-600 dark:text-blue-grey-300">
 									{option.explanation}
 								</p>
 							</div>
 						{/each}
 					</div>
 
-					<div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-						<p class="font-semibold text-gray-700 dark:text-gray-300">Explanation</p>
-						<p class="text-gray-600 dark:text-gray-400">{currentPreview.explanation}</p>
+					<div class="rounded-lg bg-blue-grey-050 p-3 text-sm dark:bg-blue-grey-900">
+						<p class="font-semibold text-blue-grey-700 dark:text-blue-grey-200">Explanation</p>
+						<p class="text-blue-grey-600 dark:text-blue-grey-300">{currentPreview.explanation}</p>
 						{#if currentPreview.keyConcept}
 							<p class="mt-2"><strong>Key Concept:</strong> {currentPreview.keyConcept}</p>
 						{/if}
 						{#if currentPreview.reference}
-							<p class="mt-1 text-xs text-gray-500">
+							<p class="mt-1 text-xs text-blue-grey-500">
 								<strong>Reference:</strong>
 								{currentPreview.reference}
 							</p>
@@ -416,8 +420,9 @@
 			{/if}
 
 			<div class="mt-5 flex flex-wrap justify-end gap-2">
-				<Button color="gray" outline onclick={cancel}>Cancel</Button>
-				<Button color="gray" onclick={generate} disabled={generating}>Regenerate All</Button>
+				<Button color="primary" outline onclick={cancel}>Cancel</Button>
+				<Button color="blue" outline onclick={generate} disabled={generating}>Regenerate All</Button
+				>
 				<Button
 					color="green"
 					onclick={importValid}
@@ -431,15 +436,17 @@
 
 	{#if data.history.length > 0}
 		<Card>
-			<h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Generation History</h2>
+			<h2 class="mb-3 text-lg font-semibold text-blue-grey-900 dark:text-white">
+				Generation History
+			</h2>
 			<div class="space-y-2 text-sm">
 				{#each data.history as item (item.id)}
 					<div
-						class="flex items-center justify-between rounded-lg border border-gray-200 p-2 dark:border-gray-700"
+						class="flex items-center justify-between rounded-lg border border-blue-grey-200 p-2 dark:border-blue-grey-700"
 					>
 						<div>
-							<span class="font-medium text-gray-900 dark:text-white">{item.model}</span>
-							<span class="ml-2 text-gray-500 dark:text-gray-400">
+							<span class="font-medium text-blue-grey-900 dark:text-white">{item.model}</span>
+							<span class="ml-2 text-blue-grey-500 dark:text-blue-grey-300">
 								{item.questionCount} questions · {item.createdAt}
 							</span>
 						</div>
