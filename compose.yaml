@@ -1,0 +1,14 @@
+services:
+  saa-practice:
+    build:
+      context: .
+      dockerfile: Containerfile
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    volumes:
+      - saa-data:/app/data
+
+volumes:
+  saa-data:
