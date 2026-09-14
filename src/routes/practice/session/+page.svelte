@@ -128,7 +128,7 @@
 			></div>
 		</div>
 
-		<SectionCard class="w-full" padding="large">
+		<SectionCard class="w-full" padding="default">
 			<div class="border-t-4 border-teal-500 pt-4">
 				<div class="flex flex-wrap items-center justify-center gap-2 text-center">
 					<Badge color={question.questionType === 'single' ? 'gray' : 'purple'}>
@@ -141,13 +141,11 @@
 					{/if}
 				</div>
 
-				<p
-					class="mx-auto mt-5 max-w-2xl text-left leading-7 whitespace-pre-line text-blue-grey-900 dark:text-white"
-				>
+				<p class="mt-4 text-left leading-7 whitespace-pre-line text-blue-grey-900 dark:text-white">
 					{question.questionText}
 				</p>
 
-				<div class="mt-5 space-y-2">
+				<div class="mt-4 space-y-2">
 					{#each question.options as option (option.optionKey)}
 						{@const isSelected = selected.includes(option.optionKey)}
 						<button
