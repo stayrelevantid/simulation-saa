@@ -15,6 +15,7 @@
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import type { PageProps } from './$types';
 	import type { AIModel, GeneratedQuestion } from '$lib/ai/provider';
+	import { QUESTION_TYPE_LABELS } from '$lib/types/question';
 
 	let { data }: PageProps = $props();
 
@@ -235,7 +236,7 @@
 				<div>
 					<Label class="mb-2 block">Question Type</Label>
 					<div class="flex flex-wrap gap-x-6 gap-y-2">
-						<Checkbox bind:group={questionTypes} value="single">Multiple Choice</Checkbox>
+						<Checkbox bind:group={questionTypes} value="single">Single Choice</Checkbox>
 						<Checkbox bind:group={questionTypes} value="multiple">Multiple Response</Checkbox>
 					</div>
 				</div>
@@ -376,9 +377,7 @@
 							{currentPreview.difficulty}
 						</Badge>
 						<Badge color="blue">{currentPreview.domain}</Badge>
-						<Badge color="gray"
-							>{currentPreview.type === 'single' ? 'Multiple Choice' : 'Multiple Response'}</Badge
-						>
+						<Badge color="gray">{QUESTION_TYPE_LABELS[currentPreview.type]}</Badge>
 						{#each currentPreview.services as service (service)}
 							<Badge color="purple" size="small">{service}</Badge>
 						{/each}

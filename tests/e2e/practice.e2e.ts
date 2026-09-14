@@ -17,6 +17,10 @@ test.describe('Scenario 1 — Practice flow', () => {
 		await expect(page.getByRole('checkbox', { name: 'Single Choice' })).toBeChecked();
 		await expect(page.getByRole('checkbox', { name: 'Multiple Response' })).toBeChecked();
 
+		// Summary shows correct label for selected single choice
+		await expect(page.getByText('Single Choice', { exact: true })).toBeVisible();
+		await expect(page.getByText('Multiple Choice')).toHaveCount(0);
+
 		await page.getByRole('button', { name: 'Start Practice', exact: true }).click();
 		await page.waitForURL(/\/practice\/session/);
 

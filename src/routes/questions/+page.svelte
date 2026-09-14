@@ -99,7 +99,7 @@
 				<Label for="type" class="mb-1 block text-xs">Question Type</Label>
 				<Select id="type" bind:value={data.currentFilters.type} onchange={applyFilters}>
 					<option value="">All Types</option>
-					<option value="single">Multiple Choice</option>
+					<option value="single">Single Choice</option>
 					<option value="multiple">Multiple Response</option>
 				</Select>
 			</div>

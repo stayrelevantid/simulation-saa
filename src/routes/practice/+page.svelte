@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Alert, Badge, Button, Checkbox, Input, Label, Select } from 'flowbite-svelte';
 	import type { PageProps } from './$types';
+	import { QUESTION_TYPE_LABELS, type QuestionType } from '$lib/types/question';
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import SectionCard from '$lib/components/ui/SectionCard.svelte';
@@ -51,9 +52,7 @@
 	const questionTypeLabel = $derived.by(() => {
 		if (questionType.length === 0) return '–';
 		if (questionType.length === 2) return 'Both Types';
-		return questionType
-			.map((t) => (t === 'single' ? 'Multiple Choice' : 'Multiple Response'))
-			.join(' + ');
+		return questionType.map((t) => QUESTION_TYPE_LABELS[t as QuestionType]).join(' + ');
 	});
 
 	function selectPreset(preset: number) {

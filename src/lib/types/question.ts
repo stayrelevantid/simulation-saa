@@ -45,7 +45,7 @@ export interface QuestionFilters {
 }
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
-	single: 'Multiple Choice',
+	single: 'Single Choice',
 	multiple: 'Multiple Response'
 };
 
