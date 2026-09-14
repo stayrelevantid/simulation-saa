@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { getProviderFromEnv, OpenCodeProviderError } from '$lib/ai/opencode';
+import { getProviderFromEnv } from '$lib/ai/provider-env';
+import { OpenCodeProviderError } from '$lib/ai/opencode';
 import { json } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async () => {

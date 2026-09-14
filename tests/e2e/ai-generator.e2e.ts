@@ -81,8 +81,11 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		await page.goto('/ai-generator');
 		await expect(page.getByRole('heading', { name: 'AI Question Generator' })).toBeVisible();
 
-		await expect(page.getByRole('combobox')).toBeVisible({ timeout: 10_000 });
-		await page.locator('select').first().selectOption('mock/model-e2e');
+		// The mock returns a single model; ModelPicker auto-selects it as default
+		await expect(page.getByText('Recommended:')).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByRole('button', { name: 'Generate Questions' })).toBeEnabled({
+			timeout: 10_000
+		});
 
 		await page.locator('input[type="number"]').fill('1');
 		await page.getByRole('checkbox', { name: 'Cost Optimization' }).check();

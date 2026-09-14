@@ -1,21 +1,15 @@
 <script lang="ts">
-	import {
-		Alert,
-		Badge,
-		Button,
-		Card,
-		Checkbox,
-		Input,
-		Label,
-		Select,
-		Spinner
-	} from 'flowbite-svelte';
+	import { Alert, Badge, Button, Checkbox, Input, Label, Spinner } from 'flowbite-svelte';
 	import { onMount } from 'svelte';
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import SectionCard from '$lib/components/ui/SectionCard.svelte';
+	import QuestionMeta from '$lib/components/question/QuestionMeta.svelte';
+	import QuestionOptions from '$lib/components/question/QuestionOptions.svelte';
+	import QuestionExplanation from '$lib/components/question/QuestionExplanation.svelte';
+	import ModelPicker from '$lib/components/ai/ModelPicker.svelte';
 	import type { PageProps } from './$types';
 	import type { AIModel, GeneratedQuestion } from '$lib/ai/provider';
-	import { QUESTION_TYPE_LABELS } from '$lib/types/question';
 
 	let { data }: PageProps = $props();
 
@@ -28,28 +22,43 @@
 	let questionTypes = $state<string[]>(['single', 'multiple']);
 	let selectedDomains = $state<string[]>([]);
 	let awsServices = $state('');
+
 	let generating = $state(false);
+	let validating = $state(false);
 	let generateError = $state('');
+	let generateRaw = $state('');
 
 	let rawQuestions = $state<GeneratedQuestion[]>([]);
 	let validQuestions = $state<GeneratedQuestion[]>([]);
 	let needReview = $state<{ question: GeneratedQuestion; issues: string[] }[]>([]);
-	let validating = $state(false);
 
 	let importing = $state(false);
 	let importResult = $state<{ importedCount: number; skippedCount: number } | null>(null);
 
 	let previewIndex = $state(0);
 	let previewSource = $state<'valid' | 'review'>('valid');
+	let showRaw = $state(false);
 
-	onMount(async () => {
+	const countValid = $derived(
+		Number.isInteger(questionCount) && questionCount >= 1 && questionCount <= 50
+	);
+	const difficultyValid = $derived(difficulty.length > 0);
+	const typeValid = $derived(questionTypes.length > 0);
+	const domainsValid = $derived(selectedDomains.length > 0);
+	const modelValid = $derived(selectedModel !== '');
+	const formValid = $derived(
+		countValid && difficultyValid && typeValid && domainsValid && modelValid
+	);
+
+	async function loadModels() {
 		loadingModels = true;
+		modelsError = '';
 		try {
 			const response = await fetch('/api/ai/models');
 			const payload = await response.json();
 			if (response.ok) {
 				models = payload.models ?? [];
-				if (models.length > 0) selectedModel = models[0].id;
+				if (models.length === 0) modelsError = 'No models returned by OpenCode Go.';
 			} else {
 				modelsError = payload.error ?? 'Failed to load models';
 			}
@@ -58,15 +67,22 @@
 		} finally {
 			loadingModels = false;
 		}
+	}
+
+	onMount(() => {
+		selectedDomains = data.domains.map((d) => d.name.toLowerCase().replace(/[^a-z]+/g, '_'));
+		loadModels();
 	});
 
 	async function generate() {
 		generating = true;
 		generateError = '';
+		generateRaw = '';
 		rawQuestions = [];
 		validQuestions = [];
 		needReview = [];
 		importResult = null;
+		showRaw = false;
 		previewIndex = 0;
 		previewSource = 'valid';
 
@@ -92,6 +108,7 @@
 				await validate();
 			} else {
 				generateError = payload.error ?? 'Generation failed';
+				generateRaw = payload.rawPreview ?? '';
 			}
 		} catch {
 			generateError = 'Unable to connect to OpenCode Go.';
@@ -161,6 +178,8 @@
 		needReview = [];
 		importResult = null;
 		generateError = '';
+		generateRaw = '';
+		showRaw = false;
 	}
 
 	const previewList = $derived(
@@ -178,80 +197,97 @@
 		subtitle="Generate original scenario-based SAA-C03 questions with OpenCode Go."
 	/>
 
-	<Card>
+	<SectionCard>
 		<form
-			class="space-y-5"
+			class="space-y-6"
 			onsubmit={(e) => {
 				e.preventDefault();
-				generate();
+				if (formValid) generate();
 			}}
 		>
-			<div class="grid gap-4 sm:grid-cols-2">
+			<div class="grid gap-5 sm:grid-cols-2">
 				<div>
-					<Label class="mb-1 block">Exam Profile</Label>
+					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						Exam Profile
+					</Label>
 					<Input value="SAA-C03" disabled />
 				</div>
 				<div>
-					<Label class="mb-1 block">AI Model</Label>
-					{#if loadingModels}
-						<div class="flex items-center gap-2 text-sm text-blue-grey-500">
-							<Spinner size="4" /> Loading models...
-						</div>
-					{:else if modelsError}
-						<Select disabled>
-							<option>Model unavailable</option>
-						</Select>
-					{:else}
-						<Select bind:value={selectedModel}>
-							{#each models as model (model.id)}
-								<option value={model.id}>{model.id}</option>
-							{/each}
-						</Select>
+					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						AI Model
+					</Label>
+					<ModelPicker
+						{models}
+						selected={selectedModel}
+						{modelsError}
+						loading={loadingModels}
+						onRetry={loadModels}
+						onselect={(id) => (selectedModel = id)}
+					/>
+					{#if !modelValid && !loadingModels && !modelsError}
+						<p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+							Select an AI model.
+						</p>
 					{/if}
 				</div>
 			</div>
 
-			{#if modelsError}
-				<Alert color="red">
-					{modelsError}
-					<span class="mt-1 block text-xs">
-						Check: OpenCode Go is running, base URL is correct, API key is set, and the selected
-						model is available.
-					</span>
-				</Alert>
-			{/if}
-
-			<div class="grid gap-4 sm:grid-cols-2">
+			<div class="grid gap-5 sm:grid-cols-2">
 				<div>
-					<Label class="mb-1 block">Question Count (1-50)</Label>
+					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						Question Count (1-50)
+					</Label>
 					<Input type="number" bind:value={questionCount} min="1" max="50" />
+					{#if !countValid}
+						<p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+							Question count must be a whole number between 1 and 50.
+						</p>
+					{/if}
 				</div>
 				<div>
-					<Label class="mb-1 block">AWS Services (comma-separated, optional)</Label>
+					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						AWS Services <span class="font-normal text-blue-grey-400">(optional)</span>
+					</Label>
 					<Input bind:value={awsServices} placeholder="Auto" />
 				</div>
 			</div>
 
-			<div class="grid gap-4 sm:grid-cols-2">
+			<div class="grid gap-5 sm:grid-cols-2">
 				<div>
-					<Label class="mb-2 block">Question Type</Label>
+					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						Question Type
+					</Label>
 					<div class="flex flex-wrap gap-x-6 gap-y-2">
 						<Checkbox bind:group={questionTypes} value="single">Single Choice</Checkbox>
 						<Checkbox bind:group={questionTypes} value="multiple">Multiple Response</Checkbox>
 					</div>
+					{#if !typeValid}
+						<p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+							Select at least one question type.
+						</p>
+					{/if}
 				</div>
 				<div>
-					<Label class="mb-2 block">Difficulty</Label>
+					<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						Difficulty
+					</Label>
 					<div class="flex flex-wrap gap-x-6 gap-y-2">
 						<Checkbox bind:group={difficulty} value="easy">Easy</Checkbox>
 						<Checkbox bind:group={difficulty} value="medium">Medium</Checkbox>
 						<Checkbox bind:group={difficulty} value="hard">Hard</Checkbox>
 					</div>
+					{#if !difficultyValid}
+						<p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+							Select at least one difficulty level.
+						</p>
+					{/if}
 				</div>
 			</div>
 
 			<div>
-				<Label class="mb-2 block">Domain</Label>
+				<Label class="mb-2 block text-sm font-medium text-blue-grey-800 dark:text-blue-grey-100">
+					Domain
+				</Label>
 				<div class="grid gap-2 sm:grid-cols-2">
 					{#each data.domains as domain (domain.id)}
 						<Checkbox
@@ -262,45 +298,79 @@
 						</Checkbox>
 					{/each}
 				</div>
+				{#if !domainsValid}
+					<p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+						Select at least one domain.
+					</p>
+				{/if}
 			</div>
 
-			<Button type="submit" color="primary" disabled={generating || !selectedModel} class="w-full">
-				{generating ? 'Generating...' : 'Generate Questions'}
+			<Button
+				type="submit"
+				color="primary"
+				size="lg"
+				class="w-full"
+				disabled={generating || !formValid}
+			>
+				{#if generating}
+					<Spinner size="4" class="mr-2" /> Generating...
+				{:else}
+					Generate Questions
+				{/if}
 			</Button>
 		</form>
-	</Card>
+	</SectionCard>
 
 	{#if generateError}
-		<Alert color="red">{generateError}</Alert>
+		<SectionCard variant="danger">
+			<p class="text-sm text-red-700 dark:text-red-300">{generateError}</p>
+			{#if generateRaw}
+				<Button size="xs" color="red" outline class="mt-3" onclick={() => (showRaw = !showRaw)}>
+					{showRaw ? 'Hide raw output' : 'Show raw output'}
+				</Button>
+				{#if showRaw}
+					<pre
+						class="mt-3 max-h-64 overflow-auto rounded-lg bg-blue-grey-900 p-3 text-xs text-blue-grey-100">
+{generateRaw}</pre>
+				{/if}
+			{/if}
+		</SectionCard>
 	{/if}
 
 	{#if importResult}
-		<Alert color="green">
-			<span class="font-medium">Import complete.</span>
-			{importResult.importedCount} questions imported into the Question Bank
-			{importResult.skippedCount > 0 ? `, ${importResult.skippedCount} skipped (duplicates).` : '.'}
-			<span class="ml-1 underline">
-				<a href="/questions">View Question Bank</a>
-			</span>
-		</Alert>
+		<SectionCard variant="success">
+			<p class="text-sm text-teal-800 dark:text-teal-200">
+				<strong>Import complete.</strong>
+				{importResult.importedCount} questions imported into the Question Bank
+				{importResult.skippedCount > 0
+					? `, ${importResult.skippedCount} skipped (duplicates).`
+					: '.'}
+			</p>
+			<div class="mt-3">
+				<a
+					href="/questions"
+					class="text-sm font-medium text-teal-700 underline hover:text-teal-800 dark:text-teal-300"
+				>
+					View Question Bank →</a
+				>
+			</div>
+		</SectionCard>
 	{/if}
 
 	{#if generating || validating}
-		<Card>
+		<SectionCard>
 			<div
-				class="flex items-center justify-center gap-3 p-6 text-blue-grey-500 dark:text-blue-grey-300"
+				class="flex items-center justify-center gap-3 p-8 text-blue-grey-500 dark:text-blue-grey-300"
 			>
 				<Spinner size="6" />
-				{generating
-					? 'Generating questions via OpenCode Go...'
-					: 'Validating generated questions...'}
+				{generating ? 'Generating questions via OpenCode Go…' : 'Validating generated questions…'}
 			</div>
-		</Card>
+		</SectionCard>
 	{/if}
 
 	{#if !generating && !validating && (validQuestions.length > 0 || needReview.length > 0)}
-		<Card>
-			<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+		<SectionCard>
+			<div class="mb-5 flex flex-wrap items-center justify-between gap-2">
 				<h2 class="text-lg font-semibold text-blue-grey-900 dark:text-white">
 					{rawQuestions.length} Questions Generated
 				</h2>
@@ -343,8 +413,8 @@
 				{#each previewList as q, i (q.question + i)}
 					<button
 						type="button"
-						class="h-8 w-8 rounded text-xs font-medium {previewIndex === i
-							? 'bg-blue-600 text-white'
+						class="h-8 w-8 shrink-0 rounded text-xs font-medium {previewIndex === i
+							? 'bg-primary-600 text-white'
 							: 'bg-blue-grey-100 text-blue-grey-600 hover:bg-blue-grey-200 dark:bg-blue-grey-700 dark:text-blue-grey-200'}"
 						onclick={() => (previewIndex = i)}
 					>
@@ -365,106 +435,93 @@
 			{/if}
 
 			{#if currentPreview}
-				<div class="space-y-3">
-					<div class="flex flex-wrap items-center gap-2">
-						<Badge
-							color={currentPreview.difficulty === 'easy'
-								? 'green'
-								: currentPreview.difficulty === 'medium'
-									? 'yellow'
-									: 'red'}
-						>
-							{currentPreview.difficulty}
-						</Badge>
-						<Badge color="blue">{currentPreview.domain}</Badge>
-						<Badge color="gray">{QUESTION_TYPE_LABELS[currentPreview.type]}</Badge>
-						{#each currentPreview.services as service (service)}
-							<Badge color="purple" size="small">{service}</Badge>
-						{/each}
-					</div>
+				<div class="rounded-xl border border-blue-grey-100 p-5 dark:border-blue-grey-700">
+					<QuestionMeta
+						questionNumber={`Generated ${previewIndex + 1}`}
+						questionType={currentPreview.type}
+						difficulty={currentPreview.difficulty}
+						domainName={currentPreview.domain}
+						services={currentPreview.services}
+					/>
 
-					<p class="whitespace-pre-line text-blue-grey-900 dark:text-white">
+					<p class="mt-4 leading-relaxed whitespace-pre-line text-blue-grey-900 dark:text-white">
 						{currentPreview.question}
 					</p>
 
-					<div class="space-y-2">
-						{#each currentPreview.options as option (option.key)}
-							<div
-								class="rounded-lg border p-3 {option.correct
-									? 'border-green-500 bg-green-50 dark:border-green-600 dark:bg-green-950/40'
-									: 'border-blue-grey-200 dark:border-blue-grey-700'}"
-							>
-								<span class="font-bold">{option.key}.</span>
-								<span class="ml-1">{option.text}</span>
-								{#if option.correct}
-									<Badge color="green" class="float-right">Correct</Badge>
-								{/if}
-								<p class="mt-1 pl-5 text-xs text-blue-grey-600 dark:text-blue-grey-300">
-									{option.explanation}
-								</p>
-							</div>
-						{/each}
+					<div class="mt-4">
+						<QuestionOptions
+							options={currentPreview.options.map((o) => ({
+								optionKey: o.key,
+								optionText: o.text,
+								isCorrect: o.correct,
+								explanation: o.explanation
+							}))}
+							questionType={currentPreview.type}
+							revealAnswers
+						/>
 					</div>
 
-					<div class="rounded-lg bg-blue-grey-050 p-3 text-sm dark:bg-blue-grey-900">
-						<p class="font-semibold text-blue-grey-700 dark:text-blue-grey-200">Explanation</p>
-						<p class="text-blue-grey-600 dark:text-blue-grey-300">{currentPreview.explanation}</p>
-						{#if currentPreview.keyConcept}
-							<p class="mt-2"><strong>Key Concept:</strong> {currentPreview.keyConcept}</p>
-						{/if}
-						{#if currentPreview.reference}
-							<p class="mt-1 text-xs text-blue-grey-500">
-								<strong>Reference:</strong>
-								{currentPreview.reference}
-							</p>
-						{/if}
+					<div class="mt-4">
+						<QuestionExplanation
+							explanation={currentPreview.explanation}
+							keyConcept={currentPreview.keyConcept}
+							reference={currentPreview.reference}
+						/>
 					</div>
 				</div>
 			{/if}
 
-			<div class="mt-5 flex flex-wrap justify-end gap-2">
+			<div class="mt-5 flex flex-col justify-end gap-2 sm:flex-row">
 				<Button color="primary" outline onclick={cancel}>Cancel</Button>
-				<Button color="blue" outline onclick={generate} disabled={generating}>Regenerate All</Button
-				>
+				<Button color="primary" outline onclick={generate} disabled={generating}>
+					Regenerate All
+				</Button>
 				<Button
-					color="green"
+					color="primary"
 					onclick={importValid}
 					disabled={importing || validQuestions.length === 0}
 				>
-					{importing ? 'Importing...' : `Import ${validQuestions.length} Valid Questions`}
+					{importing ? 'Importing…' : `Import ${validQuestions.length} Valid Questions`}
 				</Button>
 			</div>
-		</Card>
+		</SectionCard>
 	{/if}
 
 	{#if data.history.length > 0}
-		<Card>
+		<SectionCard>
 			<h2 class="mb-3 text-lg font-semibold text-blue-grey-900 dark:text-white">
 				Generation History
 			</h2>
 			<div class="space-y-2 text-sm">
 				{#each data.history as item (item.id)}
 					<div
-						class="flex items-center justify-between rounded-lg border border-blue-grey-200 p-2 dark:border-blue-grey-700"
+						class="flex flex-col gap-1 rounded-lg border border-blue-grey-100 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-blue-grey-700"
 					>
-						<div>
-							<span class="font-medium text-blue-grey-900 dark:text-white">{item.model}</span>
+						<div class="min-w-0">
+							<span class="truncate font-medium text-blue-grey-900 dark:text-white">
+								{item.model}
+							</span>
 							<span class="ml-2 text-blue-grey-500 dark:text-blue-grey-300">
-								{item.questionCount} questions · {item.createdAt}
+								{item.questionCount} questions
 							</span>
 						</div>
-						<Badge
-							color={item.status === 'completed'
-								? 'green'
-								: item.status === 'failed'
-									? 'red'
-									: 'yellow'}
-						>
-							{item.status}
-						</Badge>
+						<div class="flex items-center gap-2">
+							<span class="text-xs text-blue-grey-400 dark:text-blue-grey-300">
+								{new Date(item.createdAt).toLocaleString()}
+							</span>
+							<Badge
+								color={item.status === 'completed'
+									? 'primary'
+									: item.status === 'failed'
+										? 'red'
+										: 'yellow'}
+							>
+								{item.status}
+							</Badge>
+						</div>
 					</div>
 				{/each}
 			</div>
-		</Card>
+		</SectionCard>
 	{/if}
 </PageContainer>

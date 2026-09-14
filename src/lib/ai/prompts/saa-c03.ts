@@ -37,7 +37,10 @@ OUTPUT FORMAT — a single JSON array of question objects:
     "keyConcept": "...",
     "reference": "AWS documentation - <service guide>"
   }
-]`;
+]
+
+VALID "domain" SLUGS (use exactly one of these, with underscores):
+"secure_architecture", "resilient_architecture", "high_performance", "cost_optimization"`;
 }
 
 export function buildUserPrompt(config: GenerationRequestConfig): string {

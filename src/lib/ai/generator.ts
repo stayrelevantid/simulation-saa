@@ -1,12 +1,12 @@
 import { db } from '$lib/db/client';
 import { aiGenerations } from '$lib/db/schema';
-import { getProviderFromEnv } from '$lib/ai/opencode';
+import { getProviderFromEnv, getOpenCodeBaseUrl } from '$lib/ai/provider-env';
 import type { GenerationRequestConfig } from '$lib/ai/provider';
 import { eq, sql } from 'drizzle-orm';
 
 export async function generateQuestions(config: GenerationRequestConfig, model: string) {
 	const provider = getProviderFromEnv();
-	const baseUrl = process.env.OPENCODE_BASE_URL ?? 'http://localhost:20128';
+	const baseUrl = getOpenCodeBaseUrl();
 
 	const [generation] = await db
 		.insert(aiGenerations)

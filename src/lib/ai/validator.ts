@@ -3,6 +3,7 @@ import { normalizeQuestionText } from '$lib/db/validation';
 import { db } from '$lib/db/client';
 import { questions, examDomains, examProfiles } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { resolveDomainSlug, domainSlug } from '$lib/ai/domain-slugs';
 
 export interface ValidationIssue {
 	questionIndex: number;
@@ -13,17 +14,6 @@ export interface ValidationResult {
 	valid: GeneratedQuestion[];
 	needReview: { question: GeneratedQuestion; issues: string[] }[];
 	allIssues: ValidationIssue[];
-}
-
-const VALID_DOMAINS = [
-	'secure_architecture',
-	'resilient_architecture',
-	'high_performance',
-	'cost_optimization'
-];
-
-function domainSlug(domain: string): string {
-	return domain.toLowerCase().replace(/[^a-z]+/g, '_');
 }
 
 function validateQuality(q: GeneratedQuestion): string[] {
@@ -41,7 +31,7 @@ function validateQuality(q: GeneratedQuestion): string[] {
 		issues.push('Question does not end with a question or prompt.');
 	}
 
-	if (!VALID_DOMAINS.includes(domainSlug(q.domain))) {
+	if (!resolveDomainSlug(q.domain)) {
 		issues.push(`Unknown domain "${q.domain}".`);
 	}
 
@@ -147,6 +137,9 @@ export async function validateGeneratedQuestions(
 }
 
 export async function getDomainIdBySlug(slug: string): Promise<number | null> {
+	const canonical = resolveDomainSlug(slug);
+	if (!canonical) return null;
+
 	const [profile] = await db.select().from(examProfiles).where(eq(examProfiles.code, 'SAA-C03'));
 	if (!profile) return null;
 
@@ -154,7 +147,6 @@ export async function getDomainIdBySlug(slug: string): Promise<number | null> {
 		.select()
 		.from(examDomains)
 		.where(eq(examDomains.examProfileId, profile.id));
-	const normalizedSlug = domainSlug(slug);
-	const match = domains.find((d) => domainSlug(d.name) === normalizedSlug);
+	const match = domains.find((d) => domainSlug(d.name) === canonical);
 	return match?.id ?? null;
 }

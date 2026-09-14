@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from '$lib/db/schema';
 import type { GeneratedQuestion } from './provider';
+import { resolveDomainSlug } from './domain-slugs';
 
 const sqlite = new Database(':memory:');
 const testDb = drizzle(sqlite, { schema });
@@ -163,6 +164,17 @@ describe('validateGeneratedQuestions', () => {
 		expect(result.needReview[0].issues.some((i) => i.includes('Unknown domain'))).toBe(true);
 	});
 
+	it('accepts domain spelling variants from real models', async () => {
+		const result = await validateGeneratedQuestions([
+			makeQuestion({
+				domain: 'Resilient Architectures',
+				question:
+					'A media streaming company must archive recorded content on AWS while keeping retrieval times low. Which solution should the solutions architect recommend?'
+			})
+		]);
+		expect(result.valid).toHaveLength(1);
+	});
+
 	it('flags missing services', async () => {
 		const result = await validateGeneratedQuestions([makeQuestion({ services: [] })]);
 		expect(result.needReview[0].issues.some((i) => i.includes('No AWS services'))).toBe(true);
@@ -192,5 +204,22 @@ describe('validateGeneratedQuestions', () => {
 		expect(result.valid).toHaveLength(1);
 		expect(result.needReview).toHaveLength(1);
 		expect(result.allIssues.length).toBeGreaterThan(0);
+	});
+});
+
+describe('resolveDomainSlug', () => {
+	it('resolves canonical slugs', () => {
+		expect(resolveDomainSlug('resilient_architecture')).toBe('resilient_architecture');
+	});
+
+	it('resolves model spelling variants', () => {
+		expect(resolveDomainSlug('resilient-architectures')).toBe('resilient_architecture');
+		expect(resolveDomainSlug('Resilient Architectures')).toBe('resilient_architecture');
+		expect(resolveDomainSlug('secure architectures')).toBe('secure_architecture');
+	});
+
+	it('returns null for unknown domains', () => {
+		expect(resolveDomainSlug('quantum_computing')).toBeNull();
+		expect(resolveDomainSlug('machine-learning')).toBeNull();
 	});
 });

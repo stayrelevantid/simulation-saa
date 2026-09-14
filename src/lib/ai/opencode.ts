@@ -20,6 +20,13 @@ export interface OpenCodeProviderConfig {
 	apiKey?: string;
 }
 
+export function normalizeOrigin(baseUrl: string): string {
+	const base = baseUrl.trim().replace(/\/+$/, '');
+	// If the base URL already includes a trailing /v1 (cloud gateway),
+	// strip it so provider paths append a single /v1.
+	return base.replace(/\/v1$/, '');
+}
+
 export function createOpenCodeProvider(config: OpenCodeProviderConfig): AIProvider {
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json'
@@ -28,10 +35,20 @@ export function createOpenCodeProvider(config: OpenCodeProviderConfig): AIProvid
 		headers['Authorization'] = `Bearer ${config.apiKey}`;
 	}
 
+	const origin = normalizeOrigin(config.baseUrl);
+
 	async function request<T>(path: string, init?: RequestInit): Promise<T> {
 		let response: Response;
 		try {
-			response = await fetch(`${config.baseUrl}${path}`, { headers, ...init });
+			response = await fetch(`${origin}${path}`, {
+				...init,
+				headers: {
+					...headers,
+					...init?.headers,
+					// The OpenCode Go gateway routes requests per session
+					'x-opencode-session': crypto.randomUUID()
+				}
+			});
 		} catch {
 			throw new OpenCodeProviderError(
 				'Unable to connect to OpenCode Go. Check that it is running and the base URL is correct.'
@@ -39,8 +56,12 @@ export function createOpenCodeProvider(config: OpenCodeProviderConfig): AIProvid
 		}
 
 		if (!response.ok) {
+			const detail = await response.text().catch(() => '');
+			const snippet = detail.trim().slice(0, 200);
 			throw new OpenCodeProviderError(
-				`OpenCode Go request failed with status ${response.status}`,
+				snippet
+					? `OpenCode Go request failed with status ${response.status}: ${snippet}`
+					: `OpenCode Go request failed with status ${response.status}`,
 				response.status
 			);
 		}
@@ -93,10 +114,4 @@ export function createOpenCodeProvider(config: OpenCodeProviderConfig): AIProvid
 			return { questions, model };
 		}
 	};
-}
-
-export function getProviderFromEnv(): AIProvider {
-	const baseUrl = process.env.OPENCODE_BASE_URL ?? 'http://localhost:20128';
-	const apiKey = process.env.OPENCODE_API_KEY;
-	return createOpenCodeProvider({ baseUrl, apiKey });
 }
