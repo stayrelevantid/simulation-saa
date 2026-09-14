@@ -17,6 +17,7 @@ export interface ReviewQuestion {
 	questionNumber: number;
 	questionText: string;
 	questionType: string;
+	difficulty: string;
 	domainName: string;
 	subcategory: string | null;
 	explanation: string;
@@ -56,6 +57,7 @@ export async function getSessionReview(sessionId: number): Promise<ReviewQuestio
 			id: questions.id,
 			questionText: questions.questionText,
 			questionType: questions.questionType,
+			difficulty: questions.difficulty,
 			domainName: examDomains.name,
 			subcategory: questions.subcategory,
 			explanation: questions.explanation,
@@ -116,6 +118,7 @@ export async function getSessionReview(sessionId: number): Promise<ReviewQuestio
 				questionNumber: index + 1,
 				questionText: question.questionText,
 				questionType: question.questionType,
+				difficulty: question.difficulty,
 				domainName: question.domainName,
 				subcategory: question.subcategory,
 				explanation: question.explanation,

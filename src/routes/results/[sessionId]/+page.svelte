@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { Button, Card } from 'flowbite-svelte';
+	import { Button } from 'flowbite-svelte';
 	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
+	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import SectionCard from '$lib/components/ui/SectionCard.svelte';
 
 	let { data }: PageProps = $props();
 
@@ -12,8 +14,8 @@
 	const incorrectCount = $derived(session.incorrectCount ?? 0);
 </script>
 
-<div class="mx-auto max-w-2xl space-y-4">
-	<Card class="rounded-xl border-blue-grey-100 p-8 text-center shadow-sm dark:border-blue-grey-700">
+<PageContainer variant="narrow">
+	<SectionCard padding="large" class="text-center">
 		<h1 class="mb-1 text-xl font-semibold text-blue-grey-900 dark:text-white">
 			{profile?.code ?? 'Exam'} Mock Exam
 		</h1>
@@ -40,7 +42,7 @@
 			</div>
 		</div>
 
-		<div class="mb-6 grid grid-cols-3 gap-4">
+		<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
 			<div>
 				<div class="text-2xl font-bold text-teal-600 dark:text-teal-300">
 					{session.correctCount ?? 0} / {profile?.questionCount ?? '-'}
@@ -70,10 +72,10 @@
 			</p>
 		{/if}
 
-		<div class="flex flex-wrap justify-center gap-3">
+		<div class="flex flex-col justify-center gap-3 sm:flex-row">
 			<Button href={`/results/${session.id}/review`} color="primary">Review Exam</Button>
 			<Button href={resolve('/exam')} color="primary" outline>New Mock Exam</Button>
 			<Button href={resolve('/')} color="primary" outline>Dashboard</Button>
 		</div>
-	</Card>
-</div>
+	</SectionCard>
+</PageContainer>
