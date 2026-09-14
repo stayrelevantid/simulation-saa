@@ -128,9 +128,11 @@
 		{/if}
 	</p>
 
-	{#each questions as question (question.id)}
-		<QuestionCard {question} onToggleBookmark={toggleBookmark} />
-	{/each}
+	<div class="grid gap-4">
+		{#each questions as question (question.id)}
+			<QuestionCard {question} onToggleBookmark={toggleBookmark} />
+		{/each}
+	</div>
 
 	{#if questions.length === 0}
 		<div

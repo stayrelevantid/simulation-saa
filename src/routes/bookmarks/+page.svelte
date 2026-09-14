@@ -1,7 +1,10 @@
 <script lang="ts">
-	import { Button } from 'flowbite-svelte';
-	import QuestionCard from '$lib/components/question/QuestionCard.svelte';
+	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
+	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import QuestionCard from '$lib/components/question/QuestionCard.svelte';
 
 	let { data }: PageProps = $props();
 
@@ -15,21 +18,22 @@
 	}
 </script>
 
-<div class="space-y-4">
-	<h1 class="text-2xl font-bold text-blue-grey-900 dark:text-white">My Bookmarks</h1>
-
-	{#each data.questions as question (question.id)}
-		<QuestionCard {question} onToggleBookmark={toggleBookmark} />
-	{/each}
+<PageContainer variant="wide">
+	<PageHeader title="My Bookmarks" subtitle="Questions you saved for later review." />
 
 	{#if data.questions.length === 0}
-		<div
-			class="rounded-lg border border-blue-grey-200 p-8 text-center text-blue-grey-500 dark:border-blue-grey-700 dark:text-blue-grey-300"
-		>
-			No bookmarks yet. Bookmark questions from the Question Bank to save them here.
-		</div>
-		<div class="flex justify-center">
-			<Button href="/questions" color="primary">Browse Questions</Button>
+		<EmptyState
+			icon="★"
+			title="No bookmarks yet"
+			description="Bookmark questions from the Question Bank to save them here for later review."
+			actionHref={resolve('/questions')}
+			actionLabel="Browse Questions"
+		/>
+	{:else}
+		<div class="grid gap-4">
+			{#each data.questions as question (question.id)}
+				<QuestionCard {question} onToggleBookmark={toggleBookmark} />
+			{/each}
 		</div>
 	{/if}
-</div>
+</PageContainer>
