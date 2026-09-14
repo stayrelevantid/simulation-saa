@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { accuracyBarColor, toBarItems, topByAccuracy, pct, shortDate } from './chart-utils';
+import {
+	accuracyBarColor,
+	toBarItems,
+	topByAccuracy,
+	pct,
+	shortDate,
+	dedupeLabels
+} from './chart-utils';
 
 describe('accuracyBarColor', () => {
 	it('returns teal at or above 0.8', () => {
@@ -63,5 +70,27 @@ describe('format helpers', () => {
 
 	it('formats short dates', () => {
 		expect(shortDate('2026-03-14T08:00:00Z')).toBe('14 Mar');
+	});
+});
+
+describe('dedupeLabels', () => {
+	it('keeps unique labels unchanged', () => {
+		expect(dedupeLabels(['14 Mar', '15 Mar'])).toEqual(['14 Mar', '15 Mar']);
+	});
+
+	it('suffixes repeated labels so keys stay unique', () => {
+		expect(dedupeLabels(['14 Sep', '14 Sep', '14 Sep'])).toEqual([
+			'14 Sep',
+			'14 Sep (2)',
+			'14 Sep (3)'
+		]);
+	});
+
+	it('resets counter per distinct label', () => {
+		expect(dedupeLabels(['14 Sep', '15 Sep', '14 Sep'])).toEqual([
+			'14 Sep',
+			'15 Sep',
+			'14 Sep (2)'
+		]);
 	});
 });

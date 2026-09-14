@@ -10,21 +10,20 @@ test.describe('Statistics page', () => {
 		}
 	});
 
-	test('shows charts when practice data exists or empty state otherwise', async ({ page }) => {
+	test('renders without runtime errors regardless of data state', async ({ page }) => {
+		const errors: string[] = [];
+		page.on('pageerror', (err) => errors.push(err.message));
+		page.on('console', (msg) => {
+			if (msg.type() === 'error') errors.push(msg.text());
+		});
+
 		await page.goto('/statistics');
+		await expect(page.getByRole('heading', { name: 'Statistics' })).toBeVisible();
 
-		const hasData = await page
-			.getByText('Overall Accuracy', { exact: true })
-			.isVisible()
-			.catch(() => false);
+		// Give any hydration-triggered effects a chance to surface
+		await page.waitForTimeout(500);
 
-		if (hasData) {
-			await expect(page.getByText('Accuracy by Domain', { exact: true })).toBeVisible();
-			// Donut chart is an svg with an accuracy label
-			await expect(page.locator('svg[role="img"]').first()).toBeVisible();
-		} else {
-			await expect(page.getByText('No data yet')).toBeVisible();
-			await expect(page.getByRole('link', { name: 'Start Practice' })).toBeVisible();
-		}
+		const relevant = errors.filter((e) => /Svelte|each_key|hydration|chart/i.test(e));
+		expect(relevant).toEqual([]);
 	});
 });

@@ -49,3 +49,12 @@ export function pct(value: number): string {
 export function shortDate(iso: string): string {
 	return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
+
+export function dedupeLabels(labels: string[]): string[] {
+	const counts = new Map<string, number>();
+	return labels.map((label) => {
+		const next = (counts.get(label) ?? 0) + 1;
+		counts.set(label, next);
+		return next === 1 ? label : `${label} (${next})`;
+	});
+}

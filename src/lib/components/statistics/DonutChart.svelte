@@ -58,14 +58,7 @@
 		stroke-dashoffset={-incorrectStart}
 		stroke-linecap="round"
 		class="stroke-teal-500"
-	>
-		<animate
-			attributeName="stroke-dasharray"
-			values="0 {circumference};{correctLength} {circumference}"
-			dur="0.6s"
-			fill="freeze"
-		/>
-	</circle>
+	/>
 
 	<text
 		x="50%"

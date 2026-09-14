@@ -9,7 +9,7 @@ import { listExamHistory } from '$lib/repositories/review.repository';
 import { db } from '$lib/db/client';
 import { examProfiles } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { shortDate } from '$lib/components/statistics/chart-utils';
+import { shortDate, dedupeLabels } from '$lib/components/statistics/chart-utils';
 
 export const load: PageServerLoad = async () => {
 	const [overall, domains, services, weakDomains, history] = await Promise.all([
@@ -22,14 +22,17 @@ export const load: PageServerLoad = async () => {
 
 	const [profile] = await db.select().from(examProfiles).where(eq(examProfiles.code, 'SAA-C03'));
 
-	const scoreHistory = history
+	const dated = history
 		.filter((h) => h.score !== null && h.completedAt !== null)
 		.slice()
-		.reverse()
-		.map((h) => ({
-			score: h.score as number,
-			label: shortDate(h.completedAt as string)
-		}));
+		.reverse();
+
+	const labels = dedupeLabels(dated.map((h) => shortDate(h.completedAt as string)));
+
+	const scoreHistory = dated.map((h, index) => ({
+		score: h.score as number,
+		label: labels[index]
+	}));
 
 	return {
 		overall,

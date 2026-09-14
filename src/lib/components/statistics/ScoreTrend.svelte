@@ -108,7 +108,7 @@
 			class="stroke-teal-500"
 		/>
 
-		{#each history as h, i (h.label)}
+		{#each history as h, i (i)}
 			<g>
 				<title>{h.label}: {h.score}</title>
 				<circle
@@ -116,15 +116,7 @@
 					cy={y(h.score)}
 					r="4"
 					class={h.score >= passingScore ? 'fill-teal-600' : 'fill-red-500'}
-				>
-					<animate
-						attributeName="r"
-						values="0;4"
-						dur="0.3s"
-						begin="{0.3 + i * 0.08}s"
-						fill="freeze"
-					/>
-				</circle>
+				/>
 				<text
 					x={x(i)}
 					y={height - 14}
