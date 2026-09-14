@@ -1,19 +1,23 @@
 <script lang="ts">
-	import { Alert, Button, Card } from 'flowbite-svelte';
+	import { Alert, Button } from 'flowbite-svelte';
 	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
+	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import SectionCard from '$lib/components/ui/SectionCard.svelte';
 
 	let { form }: PageProps = $props();
 </script>
 
-<div class="mx-auto max-w-2xl space-y-4">
-	<Button href={resolve('/questions')} size="sm" color="primary" outline>
-		← Back to Question Bank
-	</Button>
+<PageContainer variant="narrow">
+	<PageHeader
+		title="Import Question Bank"
+		backHref={resolve('/questions')}
+		backLabel="Back to Question Bank"
+	/>
 
-	<Card class="rounded-xl border-blue-grey-100 shadow-sm dark:border-blue-grey-700">
-		<h1 class="mb-2 text-xl font-bold text-blue-grey-900 dark:text-white">Import Question Bank</h1>
-		<p class="mb-5 text-sm text-blue-grey-600 dark:text-blue-grey-200">
+	<SectionCard>
+		<p class="mb-5 text-sm leading-relaxed text-blue-grey-600 dark:text-blue-grey-200">
 			Upload a JSON file containing an array of questions. Each question must include
 			<code>questionText</code>, <code>questionType</code> (<code>single</code> |
 			<code>multiple</code>), <code>difficulty</code>, <code>domain</code>,
@@ -23,7 +27,7 @@
 
 		<form method="POST" action="?/import" enctype="multipart/form-data" class="space-y-4">
 			<label
-				class="block cursor-pointer rounded-xl border-2 border-dashed border-blue-grey-300 bg-blue-grey-050 p-8 text-center transition-colors hover:border-teal-400 hover:bg-teal-050 dark:border-blue-grey-600 dark:bg-blue-grey-900 dark:hover:border-teal-700 dark:hover:bg-teal-900/30"
+				class="block cursor-pointer rounded-xl border-2 border-dashed border-blue-grey-300 bg-blue-grey-050 p-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-050 sm:p-8 dark:border-blue-grey-600 dark:bg-blue-grey-900 dark:hover:border-teal-700 dark:hover:bg-teal-900/30"
 			>
 				<input type="file" name="file" accept=".json,application/json" class="hidden" />
 				<span class="block text-sm font-medium text-blue-grey-700 dark:text-blue-grey-200">
@@ -35,7 +39,7 @@
 			</label>
 			<Button type="submit" color="primary" class="w-full">Upload &amp; Validate</Button>
 		</form>
-	</Card>
+	</SectionCard>
 
 	{#if form?.error}
 		<Alert color="red">{form.error}</Alert>
@@ -59,4 +63,4 @@
 			</Alert>
 		{/if}
 	{/if}
-</div>
+</PageContainer>

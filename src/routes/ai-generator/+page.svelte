@@ -11,7 +11,8 @@
 		Spinner
 	} from 'flowbite-svelte';
 	import { onMount } from 'svelte';
-	import { resolve } from '$app/paths';
+	import PageContainer from '$lib/components/layout/PageContainer.svelte';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import type { PageProps } from './$types';
 	import type { AIModel, GeneratedQuestion } from '$lib/ai/provider';
 
@@ -170,8 +171,11 @@
 	);
 </script>
 
-<div class="mx-auto max-w-4xl space-y-4">
-	<h1 class="text-2xl font-bold text-blue-grey-900 dark:text-white">AI Question Generator</h1>
+<PageContainer variant="reading">
+	<PageHeader
+		title="AI Question Generator"
+		subtitle="Generate original scenario-based SAA-C03 questions with OpenCode Go."
+	/>
 
 	<Card>
 		<form
@@ -230,14 +234,14 @@
 			<div class="grid gap-4 sm:grid-cols-2">
 				<div>
 					<Label class="mb-2 block">Question Type</Label>
-					<div class="flex gap-4">
+					<div class="flex flex-wrap gap-x-6 gap-y-2">
 						<Checkbox bind:group={questionTypes} value="single">Multiple Choice</Checkbox>
 						<Checkbox bind:group={questionTypes} value="multiple">Multiple Response</Checkbox>
 					</div>
 				</div>
 				<div>
 					<Label class="mb-2 block">Difficulty</Label>
-					<div class="flex gap-4">
+					<div class="flex flex-wrap gap-x-6 gap-y-2">
 						<Checkbox bind:group={difficulty} value="easy">Easy</Checkbox>
 						<Checkbox bind:group={difficulty} value="medium">Medium</Checkbox>
 						<Checkbox bind:group={difficulty} value="hard">Hard</Checkbox>
@@ -275,7 +279,7 @@
 			{importResult.importedCount} questions imported into the Question Bank
 			{importResult.skippedCount > 0 ? `, ${importResult.skippedCount} skipped (duplicates).` : '.'}
 			<span class="ml-1 underline">
-				<a href={resolve('/questions')}>View Question Bank</a>
+				<a href="/questions">View Question Bank</a>
 			</span>
 		</Alert>
 	{/if}
@@ -334,7 +338,7 @@
 				</div>
 			{/if}
 
-			<div class="mb-4 flex flex-wrap gap-1">
+			<div class="mb-4 flex gap-1 overflow-x-auto pb-1">
 				{#each previewList as q, i (q.question + i)}
 					<button
 						type="button"
@@ -464,4 +468,4 @@
 			</div>
 		</Card>
 	{/if}
-</div>
+</PageContainer>
