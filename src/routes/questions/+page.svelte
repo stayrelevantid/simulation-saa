@@ -128,7 +128,7 @@
 		{/if}
 	</p>
 
-	<div class="grid gap-4">
+	<div class="grid gap-5">
 		{#each questions as question (question.id)}
 			<QuestionCard {question} onToggleBookmark={toggleBookmark} />
 		{/each}
@@ -136,7 +136,7 @@
 
 	{#if questions.length === 0}
 		<div
-			class="rounded-lg border border-blue-grey-200 p-8 text-center text-blue-grey-500 dark:border-blue-grey-700 dark:text-blue-grey-300"
+			class="mx-auto w-full max-w-3xl rounded-xl border border-blue-grey-200 p-8 text-center text-blue-grey-500 dark:border-blue-grey-700 dark:text-blue-grey-300"
 		>
 			Try adjusting your search or filters to find questions.
 		</div>

@@ -30,7 +30,7 @@
 			actionLabel="Browse Questions"
 		/>
 	{:else}
-		<div class="grid gap-4">
+		<div class="grid gap-5">
 			{#each data.questions as question (question.id)}
 				<QuestionCard {question} onToggleBookmark={toggleBookmark} />
 			{/each}

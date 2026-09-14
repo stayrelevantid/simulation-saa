@@ -16,10 +16,10 @@
 </script>
 
 <div
-	class="rounded-xl border border-blue-grey-100 bg-white p-5 shadow-sm transition-colors hover:border-teal-300 dark:border-blue-grey-700 dark:bg-blue-grey-800 dark:hover:border-teal-700"
+	class="mx-auto w-full max-w-3xl rounded-xl border border-blue-grey-100 bg-white p-5 shadow-sm transition-colors hover:border-teal-300 sm:p-7 dark:border-blue-grey-700 dark:bg-blue-grey-800 dark:hover:border-teal-700"
 >
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-		<div class="min-w-0 flex-1">
+	<div class="border-t-4 border-teal-500 pt-4">
+		<div class="min-w-0">
 			<QuestionMeta
 				questionNumber={question.id}
 				questionType={question.questionType}
@@ -29,16 +29,20 @@
 				services={question.services}
 			/>
 
-			<p class="mt-3 leading-relaxed text-blue-grey-900 dark:text-white">{truncatedText}</p>
+			<p class="mx-auto mt-5 max-w-2xl text-left leading-7 text-blue-grey-900 dark:text-white">
+				{truncatedText}
+			</p>
 		</div>
 
-		<div class="flex w-full shrink-0 gap-2 sm:w-auto sm:flex-col">
+		<div
+			class="mt-6 flex flex-col gap-3 border-t border-blue-grey-100 pt-4 sm:flex-row sm:justify-center dark:border-blue-grey-700"
+		>
 			<Button
 				href={`/questions/${question.id}`}
 				size="sm"
 				color="primary"
 				outline
-				class="flex-1 sm:flex-none"
+				class="w-full sm:w-auto"
 			>
 				View
 			</Button>
@@ -47,7 +51,7 @@
 				color={question.bookmarked ? 'primary' : 'gray'}
 				outline={!question.bookmarked}
 				onclick={() => onToggleBookmark(question.id)}
-				class="flex-1 sm:flex-none"
+				class="w-full sm:w-auto"
 			>
 				{question.bookmarked ? '★ Bookmarked' : '☆ Bookmark'}
 			</Button>
