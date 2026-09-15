@@ -76,13 +76,60 @@
 	onMount(() => {
 		selectedDomains = data.domains.map((d) => d.name.toLowerCase().replace(/[^a-z]+/g, '_'));
 		loadModels();
+		resumeStoredJob();
 	});
 
 	onDestroy(() => {
 		if (pollTimer) clearInterval(pollTimer);
 	});
 
+	function saveJobId() {
+		if (typeof sessionStorage !== 'undefined' && jobId !== null) {
+			sessionStorage.setItem('ai-job-id', String(jobId));
+		}
+	}
+
+	function clearJobId() {
+		if (typeof sessionStorage !== 'undefined') {
+			sessionStorage.removeItem('ai-job-id');
+		}
+	}
+
+	async function resumeStoredJob() {
+		if (typeof sessionStorage === 'undefined') return;
+		const stored = sessionStorage.getItem('ai-job-id');
+		if (!stored) return;
+		const id = Number(stored);
+		if (!Number.isInteger(id) || id <= 0) return;
+
+		try {
+			const response = await fetch(`/api/ai/jobs/${id}`);
+			if (!response.ok) {
+				clearJobId();
+				return;
+			}
+			const data = await response.json();
+			if (data.status === 'running') {
+				jobId = id;
+				jobStatus = 'running';
+				startTs = Date.now();
+				progPct = 0;
+				if (pollTimer) clearInterval(pollTimer);
+				pollTimer = setInterval(poll, 1500);
+			} else if (data.status === 'completed') {
+				clearJobId();
+				applyResult(data.result);
+			} else {
+				clearJobId();
+				failJob(data.result);
+			}
+		} catch {
+			// transient; leave storage so a later mount can retry
+		}
+	}
+
 	function applyResult(result: GenerationJobResult) {
+		clearJobId();
 		const preview = (result.preview ?? []) as GeneratedQuestion[];
 		const issueMap = new Map<number, string[]>();
 		for (const issue of result.issues ?? []) {
@@ -101,6 +148,7 @@
 	}
 
 	function failJob(result?: GenerationJobResult) {
+		clearJobId();
 		jobStatus = 'failed';
 		generateError = result?.error ?? 'Generation failed.';
 		generateRaw = result?.rawPreview ?? '';
@@ -164,6 +212,7 @@
 				return;
 			}
 			jobId = payload.jobId;
+			saveJobId();
 			if (pollTimer) clearInterval(pollTimer);
 			pollTimer = setInterval(poll, 1500);
 		} catch {
@@ -174,6 +223,7 @@
 
 	function reset() {
 		if (pollTimer) clearInterval(pollTimer);
+		clearJobId();
 		jobStatus = 'idle';
 		jobId = null;
 		progPct = 0;

@@ -6,6 +6,12 @@ import { importGeneratedQuestions } from '$lib/ai/import-questions';
 import { AIParseError } from '$lib/ai/parser';
 import type { GenerationRequestConfig } from '$lib/ai/provider';
 import { eq, sql } from 'drizzle-orm';
+import {
+	GENERATION_TIMEOUT_MS,
+	GENERATION_TIMEOUT_MESSAGE,
+	rejectAfter,
+	isStaleRunning
+} from '$lib/ai/job-runtime';
 
 const now = () => new Date().toISOString();
 
@@ -41,6 +47,18 @@ export interface GenerationJobResult {
 	rawPreview?: string;
 }
 
+function timeoutResult(message: string): GenerationJobResult {
+	return {
+		generatedCount: 0,
+		validCount: 0,
+		needReviewCount: 0,
+		importedCount: 0,
+		skippedCount: 0,
+		importedIds: [],
+		error: message
+	};
+}
+
 export async function runGenerationJob(jobId: number): Promise<void> {
 	const [job] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, jobId));
 
@@ -50,7 +68,14 @@ export async function runGenerationJob(jobId: number): Promise<void> {
 
 	try {
 		const provider = getProviderFromEnv();
-		const { questions } = await provider.generateQuestions(config, job.model);
+		const generated = (await Promise.race([
+			provider.generateQuestions(config, job.model),
+			rejectAfter<Awaited<ReturnType<typeof provider.generateQuestions>>>(
+				GENERATION_TIMEOUT_MS,
+				'Generation timed out — the provider did not respond. Please try again.'
+			)
+		])) as Awaited<ReturnType<typeof provider.generateQuestions>>;
+		const { questions } = generated;
 
 		const { valid, allIssues } = await validateGeneratedQuestions(questions);
 		const imported = await importGeneratedQuestions(valid);
@@ -89,43 +114,44 @@ export async function runGenerationJob(jobId: number): Promise<void> {
 	}
 }
 
-const JOB_TIMEOUT_MS = 6 * 60 * 1000;
+export async function expireStaleRunning(job: {
+	id: number;
+	status: string;
+	createdAt: string;
+}): Promise<GenerationJobResult | null> {
+	if (job.status !== 'running') return null;
+	if (!isStaleRunning(job.status, job.createdAt)) return null;
+
+	const result = timeoutResult(GENERATION_TIMEOUT_MESSAGE);
+	await db
+		.update(aiGenerations)
+		.set({ status: 'failed', result: JSON.stringify(result) })
+		.where(eq(aiGenerations.id, job.id));
+	return result;
+}
 
 export async function getJobStatus(jobId: number) {
 	const [job] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, jobId));
 	if (!job) return null;
 
-	// Guard against orphaned 'running' jobs (e.g. process restarted mid-generation)
-	if (job.status === 'running' && Date.now() - new Date(job.createdAt).getTime() > JOB_TIMEOUT_MS) {
-		const result: GenerationJobResult = {
-			generatedCount: 0,
-			validCount: 0,
-			needReviewCount: 0,
-			importedCount: 0,
-			skippedCount: 0,
-			importedIds: [],
-			error: 'Generation timed out. Please try again.'
-		};
-		await db
-			.update(aiGenerations)
-			.set({ status: 'failed', result: JSON.stringify(result) })
-			.where(eq(aiGenerations.id, jobId));
-		job.status = 'failed';
-		job.result = JSON.stringify(result);
-	}
+	const expired = await expireStaleRunning(job);
+	const status = expired ? 'failed' : job.status;
+	const result = expired ? expired : job.result ? JSON.parse(job.result) : null;
 
-	return {
-		id: job.id,
-		status: job.status,
-		createdAt: job.createdAt,
-		result: job.result ? (JSON.parse(job.result) as GenerationJobResult) : null
-	};
+	return { id: job.id, status, createdAt: job.createdAt, result };
 }
 
 export async function listGenerationHistory(limit = 10) {
-	return db
+	const rows = await db
 		.select()
 		.from(aiGenerations)
 		.orderBy(sql`created_at DESC`)
 		.limit(limit);
+
+	const out = [];
+	for (const row of rows) {
+		const expired = await expireStaleRunning(row);
+		out.push({ ...row, status: expired ? 'failed' : row.status });
+	}
+	return out;
 }

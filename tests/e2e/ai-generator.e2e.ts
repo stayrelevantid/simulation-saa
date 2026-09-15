@@ -56,11 +56,17 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 			if (req.url === '/v1/chat/completions') {
 				let body = '';
 				req.on('data', (c: string) => (body += c));
-				req.on('end', () => {
+				req.on('end', async () => {
+					// Keep the job 'running' long enough to exercise reload-resume
+					await new Promise((resolve) => setTimeout(resolve, 4000));
+					const unique = {
+						...good,
+						question: good.question.replaceAll(String(RUN_ID), `${RUN_ID}-${Date.now()}`)
+					};
 					res.writeHead(200, { 'Content-Type': 'application/json' });
 					res.end(
 						JSON.stringify({
-							choices: [{ message: { content: '```json\n' + JSON.stringify([good]) + '\n```' } }]
+							choices: [{ message: { content: '```json\n' + JSON.stringify([unique]) + '\n```' } }]
 						})
 					);
 				});
@@ -75,6 +81,23 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 
 	test.afterAll(async () => {
 		await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+		// Keep the dev bank clean: remove questions this suite auto-imported
+		const { default: Database } = await import('better-sqlite3');
+		const db = new Database('data/saa-practice.db');
+		db.prepare(
+			"DELETE FROM question_options WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
+		).run();
+		db.prepare(
+			"DELETE FROM question_services WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
+		).run();
+		db.prepare(
+			"DELETE FROM bookmarks WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
+		).run();
+		db.prepare(
+			"DELETE FROM exam_answers WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
+		).run();
+		db.prepare("DELETE FROM questions WHERE source='ai'").run();
+		db.close();
 	});
 
 	test('generate (async), auto-save valid questions, and see them in the bank', async ({
@@ -108,5 +131,28 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		await page.waitForURL(/search=/);
 
 		await expect(page.getByText(/video archive/).first()).toBeVisible();
+	});
+
+	test('resumes an in-progress job after a page refresh', async ({ page }) => {
+		await page.goto('/ai-generator');
+		await expect(page.getByText('Recommended:')).toBeVisible({ timeout: 10_000 });
+
+		await page.locator('input[type="number"]').fill('1');
+		await page.getByRole('checkbox', { name: 'Cost Optimization' }).check();
+		await page.getByRole('button', { name: 'Generate Questions' }).click();
+
+		// Wait until the job id is persisted so a refresh can resume it; the mock
+		// still delays the LLM response for 4s so the job is running at reload time.
+		await page.waitForFunction(
+			() => window.sessionStorage.getItem('ai-job-id') !== null,
+			undefined,
+			{ timeout: 10_000 }
+		);
+
+		await page.reload();
+
+		// After refresh the page resumes the same job and shows the completed result
+		await expect(page.getByText('1 Questions Generated')).toBeVisible({ timeout: 25_000 });
+		await expect(page.getByText('✓ 1 Valid')).toBeVisible();
 	});
 });
