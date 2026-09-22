@@ -41,7 +41,13 @@
 	let previewSource = $state<'valid' | 'review'>('valid');
 	let showRaw = $state(false);
 
+	// Seeded from the server load, then kept fresh via refreshHistory() (start / success / failure).
+	// svelte-ignore state_referenced_locally
+	let history = $state(data.history);
+	let historyRefreshing = $state(false);
+
 	let pollTimer: ReturnType<typeof setInterval> | undefined;
+	let historyTimer: ReturnType<typeof setInterval> | undefined;
 
 	const countValid = $derived(
 		Number.isInteger(questionCount) && questionCount >= 1 && questionCount <= 50
@@ -77,10 +83,13 @@
 		selectedDomains = data.domains.map((d) => d.name.toLowerCase().replace(/[^a-z]+/g, '_'));
 		loadModels();
 		resumeStoredJob();
+		// Keep the generation history live (status transitions, stale timeouts, other tabs)
+		historyTimer = setInterval(() => void refreshHistory(), 5000);
 	});
 
 	onDestroy(() => {
 		if (pollTimer) clearInterval(pollTimer);
+		if (historyTimer) clearInterval(historyTimer);
 	});
 
 	function saveJobId() {
@@ -92,6 +101,29 @@
 	function clearJobId() {
 		if (typeof sessionStorage !== 'undefined') {
 			sessionStorage.removeItem('ai-job-id');
+		}
+	}
+
+	async function refreshHistory() {
+		historyRefreshing = true;
+		try {
+			const response = await fetch('/api/ai/history');
+			if (!response.ok) return;
+			const payload = await response.json();
+			history = payload.history ?? [];
+		} catch {
+			// keep the current history on transient errors
+		} finally {
+			historyRefreshing = false;
+		}
+	}
+
+	function parseResult(item: { result: string | null }): GenerationJobResult | null {
+		if (!item.result) return null;
+		try {
+			return JSON.parse(item.result) as GenerationJobResult;
+		} catch {
+			return null;
 		}
 	}
 
@@ -131,27 +163,28 @@
 	function applyResult(result: GenerationJobResult) {
 		clearJobId();
 		const preview = (result.preview ?? []) as GeneratedQuestion[];
-		const issueMap = new Map<number, string[]>();
-		for (const issue of result.issues ?? []) {
-			const list = issueMap.get(issue.questionIndex) ?? [];
-			list.push(issue.message);
-			issueMap.set(issue.questionIndex, list);
-		}
-		validQuestions = preview.filter((_, i) => !issueMap.has(i));
+		const issues = result.issues ?? [];
+		const issuesFor = (index: number) =>
+			issues.filter((issue) => issue.questionIndex === index).map((issue) => issue.message);
+
+		validQuestions = preview.filter((_, i) => issuesFor(i).length === 0);
 		needReview = preview
-			.map((question, i) => ({ question, issues: issueMap.get(i) ?? [] }))
+			.map((question, i) => ({ question, issues: issuesFor(i) }))
 			.filter((item) => item.issues.length > 0);
 		savedCount = result.importedCount ?? 0;
 		previewIndex = 0;
 		previewSource = 'valid';
 		jobStatus = 'completed';
+		void refreshHistory();
 	}
 
 	function failJob(result?: GenerationJobResult) {
 		clearJobId();
-		jobStatus = 'failed';
+		// Return to the generator form so the user can start again immediately
+		jobStatus = 'idle';
 		generateError = result?.error ?? 'Generation failed.';
 		generateRaw = result?.rawPreview ?? '';
+		void refreshHistory();
 	}
 
 	async function poll() {
@@ -213,6 +246,7 @@
 			}
 			jobId = payload.jobId;
 			saveJobId();
+			void refreshHistory();
 			if (pollTimer) clearInterval(pollTimer);
 			pollTimer = setInterval(poll, 1500);
 		} catch {
@@ -413,9 +447,6 @@
 {generateRaw}</pre>
 				{/if}
 			{/if}
-			<div class="mt-4">
-				<Button color="red" outline onclick={reset}>Try Again</Button>
-			</div>
 		</SectionCard>
 	{/if}
 
@@ -552,25 +583,54 @@
 		</SectionCard>
 	{/if}
 
-	{#if data.history.length > 0}
-		<SectionCard>
-			<h2 class="mb-3 text-lg font-semibold text-blue-grey-900 dark:text-white">
-				Generation History
-			</h2>
+	<SectionCard>
+		<div class="mb-3 flex items-center justify-between gap-2">
+			<h2 class="text-lg font-semibold text-blue-grey-900 dark:text-white">Generation History</h2>
+			<Button size="xs" color="gray" outline onclick={refreshHistory} disabled={historyRefreshing}>
+				{#if historyRefreshing}
+					<Spinner size="4" class="mr-2" /> Refreshing…
+				{:else}
+					Refresh
+				{/if}
+			</Button>
+		</div>
+		{#if history.length === 0}
+			<p class="text-sm text-blue-grey-500 dark:text-blue-grey-300">
+				No generations yet. Run your first generation above.
+			</p>
+		{:else}
 			<div class="space-y-2 text-sm">
-				{#each data.history as item (item.id)}
+				{#each history as item (item.id)}
+					{@const result = parseResult(item)}
 					<div
-						class="flex flex-col gap-1 rounded-lg border border-blue-grey-100 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-blue-grey-700"
+						class="flex flex-col gap-1 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between {jobId ===
+						item.id
+							? 'border-teal-300 bg-teal-050/40 dark:border-teal-700 dark:bg-teal-900/20'
+							: 'border-blue-grey-100 dark:border-blue-grey-700'}"
 					>
 						<div class="min-w-0">
-							<span class="truncate font-medium text-blue-grey-900 dark:text-white">
-								{item.model}
-							</span>
-							<span class="ml-2 text-blue-grey-500 dark:text-blue-grey-300">
-								{item.questionCount} questions
-							</span>
+							<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+								<span class="truncate font-medium text-blue-grey-900 dark:text-white">
+									{item.model}
+								</span>
+								<span class="text-blue-grey-500 dark:text-blue-grey-300">
+									{item.questionCount} questions
+								</span>
+								{#if item.status === 'completed' && result}
+									<span class="text-teal-700 dark:text-teal-300">
+										· {result.importedCount} saved
+									</span>
+								{:else if item.status === 'failed' && result?.error}
+									<span class="truncate text-red-700 dark:text-red-300">· {result.error}</span>
+								{/if}
+							</div>
+							{#if item.status === 'running'}
+								<span class="mt-1 block text-xs text-yellow-700 dark:text-yellow-300">
+									In progress — this list updates automatically when it finishes.
+								</span>
+							{/if}
 						</div>
-						<div class="flex items-center gap-2">
+						<div class="flex shrink-0 items-center gap-2">
 							<span class="text-xs text-blue-grey-400 dark:text-blue-grey-300">
 								{new Date(item.createdAt).toLocaleString()}
 							</span>
@@ -581,12 +641,18 @@
 										? 'red'
 										: 'yellow'}
 							>
-								{item.status}
+								{#if item.status === 'running'}
+									<Spinner size="4" class="mr-1" /> Running
+								{:else if item.status === 'completed'}
+									✓ Completed
+								{:else}
+									✗ Failed
+								{/if}
 							</Badge>
 						</div>
 					</div>
 				{/each}
 			</div>
-		</SectionCard>
-	{/if}
+		{/if}
+	</SectionCard>
 </PageContainer>

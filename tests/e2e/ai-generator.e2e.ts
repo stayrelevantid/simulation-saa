@@ -57,6 +57,20 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 				let body = '';
 				req.on('data', (c: string) => (body += c));
 				req.on('end', async () => {
+					// Simulate a provider failure when 2 questions are requested.
+					// The chat body carries the count inside the user prompt.
+					try {
+						const parsed = JSON.parse(body) as { messages?: { content?: string }[] };
+						const prompt = (parsed.messages ?? []).map((m) => m.content ?? '').join(' ');
+						if (/Generate\s+2\s+original/i.test(prompt)) {
+							res.writeHead(500, { 'Content-Type': 'application/json' });
+							res.end(JSON.stringify({ error: 'mock provider failure' }));
+							return;
+						}
+					} catch {
+						// ignore parse issues and fall through to success
+					}
+
 					// Keep the job 'running' long enough to exercise reload-resume
 					await new Promise((resolve) => setTimeout(resolve, 4000));
 					const unique = {
@@ -123,6 +137,9 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		await expect(page.getByText('✓ 1 Valid')).toBeVisible();
 		await expect(page.getByText(/Auto-saved\./)).toBeVisible();
 
+		// Generation History refreshes automatically on success (no manual Refresh click)
+		await expect(page.getByText('✓ Completed').first()).toBeVisible({ timeout: 10_000 });
+
 		await page.getByRole('link', { name: 'View Question Bank' }).first().click();
 
 		await page.waitForURL(/\/questions/);
@@ -154,5 +171,24 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		// After refresh the page resumes the same job and shows the completed result
 		await expect(page.getByText('1 Questions Generated')).toBeVisible({ timeout: 25_000 });
 		await expect(page.getByText('✓ 1 Valid')).toBeVisible();
+	});
+
+	test('returns to the generator form and updates history when generation fails', async ({
+		page
+	}) => {
+		await page.goto('/ai-generator');
+		await expect(page.getByText('Recommended:')).toBeVisible({ timeout: 10_000 });
+
+		// The mock provider fails when 2 questions are requested
+		await page.locator('input[type="number"]').fill('2');
+		await page.getByRole('checkbox', { name: 'Cost Optimization' }).check();
+		await page.getByRole('button', { name: 'Generate Questions' }).click();
+
+		// Error is surfaced and the generator form is immediately usable again
+		await expect(page.getByText(/status 500|failed/i).first()).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByRole('button', { name: 'Generate Questions' })).toBeEnabled();
+
+		// History reflects the failure automatically
+		await expect(page.getByText('✗ Failed').first()).toBeVisible({ timeout: 10_000 });
 	});
 });
