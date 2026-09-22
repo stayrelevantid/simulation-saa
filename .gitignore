@@ -52,3 +52,6 @@ npm-debug.log*
 
 # Generated E2E test bank
 questions/test-bank.json
+
+# Local tooling
+.commandcode/
