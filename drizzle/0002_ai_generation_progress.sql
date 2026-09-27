@@ -1,0 +1,1 @@
+ALTER TABLE `ai_generations` ADD `progress` text;

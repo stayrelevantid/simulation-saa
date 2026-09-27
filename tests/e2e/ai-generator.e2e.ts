@@ -6,6 +6,7 @@ const RUN_ID = Date.now();
 const QUESTION_TEXT = `A media company is designing a video archive ${RUN_ID} on AWS containing hundreds of terabytes of content accessed rarely throughout each year. Which storage solution should the solutions architect recommend to minimize costs while keeping retrieval times under one hour?`;
 
 let mockServer: ReturnType<typeof import('node:http').createServer>;
+let athenaCalls = 0;
 
 test.describe('Scenario 3 — AI generate → validate → import', () => {
 	test.beforeAll(async () => {
@@ -57,30 +58,44 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 				let body = '';
 				req.on('data', (c: string) => (body += c));
 				req.on('end', async () => {
-					// Simulate a provider failure when 2 questions are requested.
-					// The chat body carries the count inside the user prompt.
+					let prompt = '';
 					try {
 						const parsed = JSON.parse(body) as { messages?: { content?: string }[] };
-						const prompt = (parsed.messages ?? []).map((m) => m.content ?? '').join(' ');
+						prompt = (parsed.messages ?? []).map((m) => m.content ?? '').join(' ');
+
+						// Total failure: the 'Generate 2 original' request fails entirely.
 						if (/Generate\s+2\s+original/i.test(prompt)) {
 							res.writeHead(500, { 'Content-Type': 'application/json' });
 							res.end(JSON.stringify({ error: 'mock provider failure' }));
 							return;
 						}
+
+						// Partial failure: the 2nd batch focusing on Amazon Athena fails.
+						if (/Amazon Athena/.test(prompt)) {
+							athenaCalls += 1;
+							if (athenaCalls === 2) {
+								res.writeHead(500, { 'Content-Type': 'application/json' });
+								res.end(JSON.stringify({ error: 'mock provider failure' }));
+								return;
+							}
+						}
 					} catch {
 						// ignore parse issues and fall through to success
 					}
 
+					const countMatch = prompt.match(/Generate\s+(\d+)\s+original/i);
+					const count = countMatch ? Number(countMatch[1]) : 1;
+
 					// Keep the job 'running' long enough to exercise reload-resume
 					await new Promise((resolve) => setTimeout(resolve, 4000));
-					const unique = {
+					const questions = Array.from({ length: count }, (_, i) => ({
 						...good,
-						question: good.question.replaceAll(String(RUN_ID), `${RUN_ID}-${Date.now()}`)
-					};
+						question: good.question.replaceAll(String(RUN_ID), `${RUN_ID}-${Date.now()}-${i}`)
+					}));
 					res.writeHead(200, { 'Content-Type': 'application/json' });
 					res.end(
 						JSON.stringify({
-							choices: [{ message: { content: '```json\n' + JSON.stringify([unique]) + '\n```' } }]
+							choices: [{ message: { content: '```json\n' + JSON.stringify(questions) + '\n```' } }]
 						})
 					);
 				});
@@ -91,6 +106,7 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		});
 
 		await new Promise<void>((resolve) => mockServer.listen(MOCK_AI_PORT, resolve));
+		athenaCalls = 0;
 	});
 
 	test.afterAll(async () => {
@@ -171,6 +187,25 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 		// After refresh the page resumes the same job and shows the completed result
 		await expect(page.getByText('1 Questions Generated')).toBeVisible({ timeout: 25_000 });
 		await expect(page.getByText('✓ 1 Valid')).toBeVisible();
+	});
+
+	test('saves partial results when a later batch fails', async ({ page }) => {
+		await page.goto('/ai-generator');
+		await expect(page.getByText('Recommended:')).toBeVisible({ timeout: 10_000 });
+
+		// 10 questions => 2 batches of 5; the 2nd batch (Amazon Athena) is made to fail
+		await page.locator('input[type="number"]').fill('10');
+		await page.getByRole('checkbox', { name: 'Cost Optimization' }).check();
+		await page.getByRole('checkbox', { name: 'Amazon Athena' }).click();
+		await page.getByRole('button', { name: 'Generate Questions' }).click();
+
+		await expect(page.getByText(/Partially saved\./)).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByText('✗ 5 Failed')).toBeVisible();
+		await expect(page.getByText('✓ 5 Valid')).toBeVisible();
+
+		// History reflects the partial outcome
+		await expect(page.getByText('✓ Completed').first()).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText('· 5 failed').first()).toBeVisible();
 	});
 
 	test('returns to the generator form and updates history when generation fails', async ({

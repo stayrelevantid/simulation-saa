@@ -108,6 +108,7 @@ export const aiGenerations = sqliteTable('ai_generations', {
 	configuration: text('configuration'),
 	status: text('status').notNull(),
 	result: text('result'),
+	progress: text('progress'),
 	createdAt: text('created_at').notNull()
 });
 

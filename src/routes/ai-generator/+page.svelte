@@ -29,13 +29,22 @@
 	let jobStatus = $state<'idle' | 'running' | 'completed' | 'failed'>('idle');
 	let jobId = $state<number | null>(null);
 	let progPct = $state(0);
-	let startTs = $state(0);
 	let generateError = $state('');
 	let generateRaw = $state('');
+	let jobProgress = $state<{
+		done: number;
+		total: number;
+		saved: number;
+		failed: number;
+		needReview: number;
+		skipped: number;
+	} | null>(null);
 
 	let validQuestions = $state<GeneratedQuestion[]>([]);
 	let needReview = $state<{ question: GeneratedQuestion; issues: string[] }[]>([]);
 	let savedCount = $state(0);
+	let failedCount = $state(0);
+	let failures = $state<string[]>([]);
 
 	let previewIndex = $state(0);
 	let previewSource = $state<'valid' | 'review'>('valid');
@@ -144,7 +153,6 @@
 			if (data.status === 'running') {
 				jobId = id;
 				jobStatus = 'running';
-				startTs = Date.now();
 				progPct = 0;
 				if (pollTimer) clearInterval(pollTimer);
 				pollTimer = setInterval(poll, 1500);
@@ -172,6 +180,9 @@
 			.map((question, i) => ({ question, issues: issuesFor(i) }))
 			.filter((item) => item.issues.length > 0);
 		savedCount = result.importedCount ?? 0;
+		failedCount = result.failedCount ?? 0;
+		failures = result.failures ?? [];
+		jobProgress = null;
 		previewIndex = 0;
 		previewSource = 'valid';
 		jobStatus = 'completed';
@@ -182,6 +193,7 @@
 		clearJobId();
 		// Return to the generator form so the user can start again immediately
 		jobStatus = 'idle';
+		jobProgress = null;
 		generateError = result?.error ?? 'Generation failed.';
 		generateRaw = result?.rawPreview ?? '';
 		void refreshHistory();
@@ -197,8 +209,10 @@
 			}
 			const data = await response.json();
 			if (data.status === 'running') {
-				const elapsed = Date.now() - startTs;
-				progPct = Math.min(90, Math.round((elapsed / 90_000) * 90));
+				jobProgress = data.progress ?? null;
+				if (jobProgress && jobProgress.total > 0) {
+					progPct = Math.min(99, Math.round((jobProgress.done / jobProgress.total) * 100));
+				}
 			} else if (data.status === 'completed') {
 				if (pollTimer) clearInterval(pollTimer);
 				progPct = 100;
@@ -217,12 +231,14 @@
 
 		jobStatus = 'running';
 		progPct = 0;
-		startTs = Date.now();
 		generateError = '';
 		generateRaw = '';
 		validQuestions = [];
 		needReview = [];
 		savedCount = 0;
+		failedCount = 0;
+		failures = [];
+		jobProgress = null;
 		showRaw = false;
 
 		try {
@@ -240,7 +256,7 @@
 			});
 			const payload = await response.json();
 			if (!response.ok) {
-				jobStatus = 'failed';
+				jobStatus = 'idle';
 				generateError = payload.error ?? 'Failed to start generation';
 				return;
 			}
@@ -250,7 +266,7 @@
 			if (pollTimer) clearInterval(pollTimer);
 			pollTimer = setInterval(poll, 1500);
 		} catch {
-			jobStatus = 'failed';
+			jobStatus = 'idle';
 			generateError = 'Unable to start AI generation.';
 		}
 	}
@@ -261,9 +277,12 @@
 		jobStatus = 'idle';
 		jobId = null;
 		progPct = 0;
+		jobProgress = null;
 		validQuestions = [];
 		needReview = [];
 		savedCount = 0;
+		failedCount = 0;
+		failures = [];
 		generateError = '';
 		generateRaw = '';
 		showRaw = false;
@@ -421,14 +440,32 @@
 					class="mt-3 h-3 w-full overflow-hidden rounded-full bg-blue-grey-100 dark:bg-blue-grey-700"
 				>
 					<div
-						class="h-3 rounded-full bg-teal-500 transition-all duration-700 ease-out"
+						class="h-3 rounded-full bg-teal-500 transition-all duration-500 ease-out"
 						style="width: {progPct}%"
 					></div>
+				</div>
+				<div class="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+					<span class="text-blue-grey-600 dark:text-blue-grey-300">
+						{jobProgress ? jobProgress.done : 0} / {jobProgress ? jobProgress.total : 0} questions
+					</span>
+					<span class="font-medium text-teal-700 dark:text-teal-300">
+						Saved {jobProgress?.saved ?? 0}
+					</span>
+					{#if (jobProgress?.failed ?? 0) > 0}
+						<span class="font-medium text-red-700 dark:text-red-300">
+							Failed {jobProgress?.failed ?? 0}
+						</span>
+					{/if}
+					{#if (jobProgress?.needReview ?? 0) > 0}
+						<span class="font-medium text-yellow-700 dark:text-yellow-300">
+							Need review {jobProgress?.needReview ?? 0}
+						</span>
+					{/if}
 				</div>
 				<div
 					class="mt-3 flex items-center justify-center gap-2 text-sm text-blue-grey-500 dark:text-blue-grey-300"
 				>
-					<Spinner size="4" /> Generating questions via OpenCode Go… valid questions are saved automatically.
+					<Spinner size="4" /> Generating in small batches — each valid question is saved as it finishes.
 				</div>
 			</div>
 		</SectionCard>
@@ -461,15 +498,25 @@
 					{#if needReview.length > 0}
 						<Badge color="yellow">⚠ {needReview.length} Need Review</Badge>
 					{/if}
+					{#if failedCount > 0}
+						<Badge color="red">✗ {failedCount} Failed</Badge>
+					{/if}
 				</div>
 			</div>
 
 			{#if savedCount > 0}
-				<SectionCard variant="success" class="mb-5">
-					<p class="text-sm text-teal-800 dark:text-teal-200">
-						<strong>Auto-saved.</strong>
+				<SectionCard variant={failedCount > 0 ? 'warning' : 'success'} class="mb-5">
+					<p
+						class="text-sm {failedCount > 0
+							? 'text-yellow-800 dark:text-yellow-200'
+							: 'text-teal-800 dark:text-teal-200'}"
+					>
+						<strong>{failedCount > 0 ? 'Partially saved.' : 'Auto-saved.'}</strong>
 						{savedCount} valid question
 						{savedCount === 1 ? '' : 's'} imported into the Question Bank.
+						{#if failedCount > 0}
+							{failedCount} question{failedCount === 1 ? '' : 's'} failed.
+						{/if}
 					</p>
 					<a
 						href={resolve('/questions')}
@@ -478,6 +525,17 @@
 						View Question Bank →
 					</a>
 				</SectionCard>
+
+				{#if failures.length > 0}
+					<SectionCard variant="danger" class="mb-5">
+						<p class="text-sm font-medium text-red-700 dark:text-red-300">Failed batches:</p>
+						<ul class="mt-1 list-inside list-disc text-xs text-red-700 dark:text-red-300">
+							{#each failures as failure (failure)}
+								<li>{failure}</li>
+							{/each}
+						</ul>
+					</SectionCard>
+				{/if}
 			{:else}
 				<SectionCard variant="warning" class="mb-5">
 					<p class="text-sm text-yellow-800 dark:text-yellow-200">
@@ -620,6 +678,11 @@
 									<span class="text-teal-700 dark:text-teal-300">
 										· {result.importedCount} saved
 									</span>
+									{#if result.failedCount > 0}
+										<span class="text-red-700 dark:text-red-300">
+											· {result.failedCount} failed
+										</span>
+									{/if}
 								{:else if item.status === 'failed' && result?.error}
 									<span class="truncate text-red-700 dark:text-red-300">· {result.error}</span>
 								{/if}
