@@ -37,10 +37,6 @@ export interface SelectionConfig {
 	excludeIds?: number[];
 }
 
-export interface PracticeConfig extends SelectionConfig {
-	mode: 'practice' | 'wrong';
-}
-
 function shuffle<T>(array: T[]): T[] {
 	const copy = [...array];
 	for (let i = copy.length - 1; i > 0; i--) {
@@ -156,22 +152,182 @@ export async function selectWrongQuestions(count: number): Promise<SelectedQuest
 	return selected.filter((q) => ids.includes(q.id));
 }
 
-export async function createPracticeSession(config: PracticeConfig): Promise<number> {
-	const [session] = await db
-		.insert(examSessions)
-		.values({
-			examProfileId: 1,
-			mode: `practice_${config.mode}`,
-			startedAt: new Date().toISOString(),
-			status: 'active'
-		})
-		.returning();
-	return session.id;
-}
-
 export async function getPracticeSession(sessionId: number) {
 	const [session] = await db.select().from(examSessions).where(eq(examSessions.id, sessionId));
 	return session ?? null;
+}
+
+export async function getActivePracticeSession() {
+	const [session] = await db
+		.select()
+		.from(examSessions)
+		.where(and(sql`${examSessions.mode} LIKE 'practice%'`, eq(examSessions.status, 'active')))
+		.orderBy(desc(examSessions.id))
+		.limit(1);
+	return session ?? null;
+}
+
+export async function markPracticeSessionCompleted(sessionId: number): Promise<void> {
+	await db
+		.update(examSessions)
+		.set({ status: 'completed', completedAt: new Date().toISOString() })
+		.where(eq(examSessions.id, sessionId));
+}
+
+/**
+ * Creates a practice session and persists the chosen question order as empty
+ * answer rows so the session can be resumed after a refresh.
+ */
+export async function startPracticeSession(
+	mode: 'practice' | 'wrong',
+	selected: SelectedQuestion[]
+): Promise<number> {
+	return db.transaction((tx) => {
+		tx.update(examSessions)
+			.set({ status: 'abandoned' })
+			.where(and(sql`${examSessions.mode} LIKE 'practice%'`, eq(examSessions.status, 'active')))
+			.run();
+
+		const session = tx
+			.insert(examSessions)
+			.values({
+				examProfileId: 1,
+				mode: `practice_${mode}`,
+				startedAt: new Date().toISOString(),
+				status: 'active'
+			})
+			.returning()
+			.get();
+
+		const now = new Date().toISOString();
+		for (const question of selected) {
+			tx.insert(examAnswers)
+				.values({
+					examSessionId: session.id,
+					questionId: question.id,
+					selectedAnswers: '[]',
+					isCorrect: null,
+					flagged: false,
+					answeredAt: now
+				})
+				.run();
+		}
+
+		return session.id;
+	});
+}
+
+export async function loadQuestionsByIds(ids: number[]): Promise<Map<number, SelectedQuestion>> {
+	const map = new Map<number, SelectedQuestion>();
+	if (ids.length === 0) return map;
+
+	const rows = await db
+		.select({
+			id: questions.id,
+			questionText: questions.questionText,
+			questionType: questions.questionType,
+			difficulty: questions.difficulty,
+			domainName: examDomains.name,
+			subcategory: questions.subcategory,
+			explanation: questions.explanation,
+			keyConcept: questions.keyConcept,
+			reference: questions.reference
+		})
+		.from(questions)
+		.innerJoin(examDomains, eq(questions.domainId, examDomains.id))
+		.where(inArray(questions.id, ids));
+
+	const optionRows = await db
+		.select({
+			questionId: questionOptions.questionId,
+			optionKey: questionOptions.optionKey,
+			optionText: questionOptions.optionText,
+			isCorrect: questionOptions.isCorrect,
+			explanation: questionOptions.explanation
+		})
+		.from(questionOptions)
+		.where(inArray(questionOptions.questionId, ids))
+		.orderBy(asc(questionOptions.optionKey));
+
+	const serviceRows = await db
+		.select({ questionId: questionServices.questionId, serviceName: questionServices.serviceName })
+		.from(questionServices)
+		.where(inArray(questionServices.questionId, ids));
+
+	const optionsByQuestion = new Map<number, SelectedQuestion['options']>();
+	for (const o of optionRows) {
+		const list = optionsByQuestion.get(o.questionId) ?? [];
+		list.push({
+			optionKey: o.optionKey,
+			optionText: o.optionText,
+			isCorrect: o.isCorrect,
+			explanation: o.explanation
+		});
+		optionsByQuestion.set(o.questionId, list);
+	}
+
+	const servicesByQuestion = new Map<number, string[]>();
+	for (const s of serviceRows) {
+		const list = servicesByQuestion.get(s.questionId) ?? [];
+		list.push(s.serviceName);
+		servicesByQuestion.set(s.questionId, list);
+	}
+
+	for (const row of rows) {
+		map.set(row.id, {
+			id: row.id,
+			questionText: row.questionText,
+			questionType: row.questionType as QuestionType,
+			difficulty: row.difficulty as Difficulty,
+			domainName: row.domainName,
+			subcategory: row.subcategory,
+			explanation: row.explanation,
+			keyConcept: row.keyConcept,
+			reference: row.reference,
+			options: optionsByQuestion.get(row.id) ?? [],
+			services: servicesByQuestion.get(row.id) ?? []
+		});
+	}
+
+	return map;
+}
+
+export interface PracticeResume {
+	questions: SelectedQuestion[];
+	answers: { questionId: number; selected: string[]; correct: boolean | null }[];
+	finished: boolean;
+}
+
+export async function getPracticeSessionResume(sessionId: number): Promise<PracticeResume | null> {
+	const session = await getPracticeSession(sessionId);
+	if (!session) return null;
+
+	const answerRows = await db
+		.select({
+			questionId: examAnswers.questionId,
+			selectedAnswers: examAnswers.selectedAnswers,
+			isCorrect: examAnswers.isCorrect
+		})
+		.from(examAnswers)
+		.where(eq(examAnswers.examSessionId, sessionId))
+		.orderBy(asc(examAnswers.id));
+
+	const order = answerRows.map((a) => a.questionId);
+	const questionsMap = await loadQuestionsByIds(order);
+	const questions = order
+		.map((id) => questionsMap.get(id))
+		.filter((q): q is SelectedQuestion => q !== undefined);
+
+	const answers = answerRows.map((row) => ({
+		questionId: row.questionId,
+		selected: JSON.parse(row.selectedAnswers) as string[],
+		correct: row.isCorrect
+	}));
+
+	const answeredAll = answers.length > 0 && answers.every((a) => a.selected.length > 0);
+	const finished = session.status === 'completed' || answeredAll;
+
+	return { questions, answers, finished };
 }
 
 export async function countAvailableQuestions(

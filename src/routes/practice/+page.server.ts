@@ -1,6 +1,13 @@
 import type { PageServerLoad, Actions } from './$types';
 import { listDomains } from '$lib/repositories/question.repository';
-import { countAvailableQuestions, countWrongQuestions } from '$lib/services/question.service';
+import {
+	countAvailableQuestions,
+	countWrongQuestions,
+	selectQuestions,
+	selectWrongQuestions,
+	getActivePracticeSession,
+	startPracticeSession
+} from '$lib/services/question.service';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Difficulty, QuestionType } from '$lib/types/question';
 
@@ -10,8 +17,16 @@ const VALID_QUESTION_TYPES: QuestionType[] = ['single', 'multiple'];
 export const load: PageServerLoad = async ({ url }) => {
 	const domains = await listDomains();
 	const mode = url.searchParams.get('mode') === 'wrong' ? 'wrong' : 'practice';
-	const wrongCount = mode === 'wrong' ? await countWrongQuestions() : 0;
-	return { domains, mode, wrongCount };
+	const [wrongCount, activeSession] = await Promise.all([
+		mode === 'wrong' ? countWrongQuestions() : Promise.resolve(0),
+		getActivePracticeSession()
+	]);
+	return {
+		domains,
+		mode,
+		wrongCount,
+		activeSession: activeSession ? { id: activeSession.id, mode: activeSession.mode } : null
+	};
 };
 
 export const actions: Actions = {
@@ -80,7 +95,16 @@ export const actions: Actions = {
 					fields: { count: rawCount }
 				});
 			}
-			throw redirect(303, `/practice/session?mode=wrong`);
+			const selected = await selectWrongQuestions(50);
+			if (selected.length === 0) {
+				return fail(400, {
+					error: 'Your wrong-answer questions are no longer available. Refresh and try again.',
+					fields: { count: rawCount }
+				});
+			}
+
+			const sessionId = await startPracticeSession('wrong', selected);
+			throw redirect(303, `/practice/session?sessionId=${sessionId}`);
 		}
 
 		const available = await countAvailableQuestions({
@@ -102,18 +126,20 @@ export const actions: Actions = {
 			});
 		}
 
-		const params = new URLSearchParams({
-			count: String(count),
-			mode
+		const selected = await selectQuestions({
+			count,
+			domainId,
+			difficulty: difficulties as Difficulty[],
+			questionType: questionTypes as QuestionType[]
 		});
-		if (domainId) params.set('domain', String(domainId));
-		for (const difficulty of difficulties) {
-			params.append('difficulty', difficulty);
-		}
-		for (const questionType of questionTypes) {
-			params.append('type', questionType);
+		if (selected.length < count) {
+			return fail(400, {
+				error: `Only ${selected.length} matching questions could be selected. Refresh and try again.`,
+				fields: { count: rawCount }
+			});
 		}
 
-		throw redirect(303, `/practice/session?${params.toString()}`);
+		const sessionId = await startPracticeSession('practice', selected);
+		throw redirect(303, `/practice/session?sessionId=${sessionId}`);
 	}
 };

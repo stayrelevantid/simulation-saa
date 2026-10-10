@@ -19,10 +19,11 @@ test.describe('Exam session', () => {
 			page.locator('time, span').filter({ hasText: /^\d{2}:\d{2}:\d{2}$/ })
 		).toBeVisible();
 
-		await page
-			.getByRole('button', { name: /^[A-D]\. / })
-			.first()
-			.click();
+		const option = page.locator('button[aria-pressed]').first();
+		await expect(async () => {
+			if ((await option.getAttribute('aria-pressed')) !== 'true') await option.click();
+			await expect(option).toHaveAttribute('aria-pressed', 'true', { timeout: 2000 });
+		}).toPass({ timeout: 15_000 });
 		await expect(page.getByRole('button', { name: 'Navigator (' })).toContainText('1/65', {
 			timeout: 10_000
 		});

@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { db } from '$lib/db/client';
-import { examAnswers, questionOptions, questions } from '$lib/db/schema';
+import { examAnswers, examSessions, questionOptions, questions } from '$lib/db/schema';
 import { checkAnswer } from '$lib/services/scoring.service';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { json } from '@sveltejs/kit';
 import type { QuestionType } from '$lib/types/question';
 
@@ -21,6 +21,14 @@ export const POST: RequestHandler = async ({ request }) => {
 		selected.length === 0
 	) {
 		return json({ error: 'Invalid request body' }, { status: 400 });
+	}
+
+	const [session] = await db
+		.select({ mode: examSessions.mode, status: examSessions.status })
+		.from(examSessions)
+		.where(eq(examSessions.id, sessionId));
+	if (!session || !session.mode.startsWith('practice_') || session.status !== 'active') {
+		return json({ error: 'Practice session is not active' }, { status: 409 });
 	}
 
 	const options = await db
@@ -52,13 +60,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		correctKeys
 	);
 
-	await db.insert(examAnswers).values({
+	const answerValues = {
 		examSessionId: sessionId,
 		questionId,
 		selectedAnswers: JSON.stringify(selected),
 		isCorrect: result.correct,
 		answeredAt: new Date().toISOString()
-	});
+	};
+	const [existing] = await db
+		.select({ id: examAnswers.id })
+		.from(examAnswers)
+		.where(and(eq(examAnswers.examSessionId, sessionId), eq(examAnswers.questionId, questionId)));
+
+	if (existing) {
+		await db.update(examAnswers).set(answerValues).where(eq(examAnswers.id, existing.id));
+	} else {
+		await db.insert(examAnswers).values(answerValues);
+	}
 
 	return json({
 		correct: result.correct,

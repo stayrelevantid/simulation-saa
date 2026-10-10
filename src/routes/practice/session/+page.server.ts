@@ -1,41 +1,45 @@
-import type { PageServerLoad } from './$types';
+import type { PageServerLoad, Actions } from './$types';
 import {
-	selectQuestions,
-	selectWrongQuestions,
-	createPracticeSession
+	getActivePracticeSession,
+	getPracticeSession,
+	getPracticeSessionResume,
+	markPracticeSessionCompleted
 } from '$lib/services/question.service';
-import type { Difficulty, QuestionType } from '$lib/types/question';
-import { error } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ url }) => {
-	const params = url.searchParams;
-	const mode = params.get('mode') === 'wrong' ? 'wrong' : 'practice';
+	const rawSessionId = url.searchParams.get('sessionId');
+	const session = rawSessionId
+		? await getPracticeSession(Number(rawSessionId))
+		: await getActivePracticeSession();
 
-	let questions;
+	if (!session) throw redirect(303, '/practice');
+	if (!session.mode.startsWith('practice_')) throw error(404, 'Practice session not found');
+	if (session.status === 'abandoned') throw redirect(303, '/practice');
 
-	if (mode === 'wrong') {
-		questions = await selectWrongQuestions(50);
-	} else {
-		const count = Number(params.get('count') ?? '10') || 10;
-		const difficulties = params.getAll('difficulty') as Difficulty[];
-		const questionTypes = params.getAll('type') as QuestionType[];
-
-		questions = await selectQuestions({
-			count,
-			domainId: params.get('domain') ? Number(params.get('domain')) : undefined,
-			difficulty: difficulties.length > 0 ? difficulties : undefined,
-			questionType: questionTypes.length > 0 ? questionTypes : undefined
-		});
+	const resume = await getPracticeSessionResume(session.id);
+	if (!resume || resume.questions.length === 0) throw redirect(303, '/practice');
+	if (resume.finished && session.status === 'active') {
+		await markPracticeSessionCompleted(session.id);
 	}
 
-	if (questions.length === 0) {
-		throw error(
-			404,
-			mode === 'wrong' ? 'No wrong answers to practice yet.' : 'No questions match your filters.'
-		);
+	return {
+		sessionId: session.id,
+		mode: session.mode === 'practice_wrong' ? 'wrong' : 'practice',
+		questions: resume.questions,
+		answers: resume.answers,
+		finished: resume.finished
+	};
+};
+
+export const actions: Actions = {
+	complete: async ({ request }) => {
+		const formData = await request.formData();
+		const sessionId = Number(formData.get('sessionId'));
+		if (!Number.isInteger(sessionId) || sessionId <= 0) {
+			return fail(400, { error: 'Invalid practice session.' });
+		}
+		await markPracticeSessionCompleted(sessionId);
+		return { completed: true };
 	}
-
-	const sessionId = await createPracticeSession({ count: questions.length, mode });
-
-	return { questions, sessionId, mode };
 };

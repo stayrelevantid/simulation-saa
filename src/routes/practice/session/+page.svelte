@@ -9,15 +9,40 @@
 
 	const questions = $derived(data.questions);
 	const total = $derived(questions.length);
+	const savedAnswers = $derived(data.answers);
 
-	let current = $state(0);
-	let selected = $state<string[]>([]);
-	let submitted = $state(false);
-	let lastCorrect = $state(false);
+	function firstUnansweredIndex(): number {
+		const index = questions.findIndex(
+			(q) =>
+				!savedAnswers.some((answer) => answer.questionId === q.id && answer.selected.length > 0)
+		);
+		return index < 0 ? Math.max(0, questions.length - 1) : index;
+	}
+
+	// Initial state comes from the persisted server session; preserving it on refresh is intentional.
+	let current = $state(firstUnansweredIndex());
+	// svelte-ignore state_referenced_locally
+	let selected = $state(
+		savedAnswers.find((a) => a.questionId === questions[current]?.id)?.selected ?? []
+	);
+	// svelte-ignore state_referenced_locally
+	let submitted = $state(
+		savedAnswers.some((a) => a.questionId === questions[current]?.id && a.selected.length > 0)
+	);
+	// svelte-ignore state_referenced_locally
+	let lastCorrect = $state(
+		savedAnswers.find((a) => a.questionId === questions[current]?.id)?.correct === true
+	);
 	let submitting = $state(false);
 	let submitError = $state('');
-	let results = $state<{ questionId: number; correct: boolean }[]>([]);
-	let finished = $state(false);
+	// svelte-ignore state_referenced_locally
+	let results = $state<{ questionId: number; correct: boolean }[]>(
+		savedAnswers
+			.filter((answer) => answer.selected.length > 0)
+			.map((answer) => ({ questionId: answer.questionId, correct: answer.correct === true }))
+	);
+	// svelte-ignore state_referenced_locally
+	let finished = $state(data.finished);
 
 	const question = $derived(questions[current]);
 	const progress = $derived(Math.round(((current + (submitted ? 1 : 0)) / total) * 100));
@@ -70,8 +95,15 @@
 		}
 	}
 
-	function nextQuestion() {
+	async function nextQuestion() {
 		if (current + 1 >= total) {
+			const formData = new FormData();
+			formData.set('sessionId', String(data.sessionId));
+			try {
+				await fetch('?/complete', { method: 'POST', body: formData });
+			} catch {
+				// Answers are persisted; the session loader can still restore a finished summary.
+			}
 			finished = true;
 			return;
 		}

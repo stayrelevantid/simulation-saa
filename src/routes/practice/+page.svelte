@@ -103,6 +103,27 @@
 		centered
 	/>
 
+	{#if data.activeSession}
+		<SectionCard variant="info">
+			<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<div>
+					<h2 class="font-semibold text-blue-grey-900 dark:text-white">Practice in progress</h2>
+					<p class="mt-1 text-sm text-blue-grey-600 dark:text-blue-grey-200">
+						Resume where you left off, or start a new practice session. Starting a new one will
+						abandon this session.
+					</p>
+				</div>
+				<Button
+					href={`/practice/session?sessionId=${data.activeSession.id}`}
+					color="primary"
+					class="w-full shrink-0 sm:w-auto"
+				>
+					Resume Practice
+				</Button>
+			</div>
+		</SectionCard>
+	{/if}
+
 	{#if form?.error}
 		<Alert color="red">{form.error}</Alert>
 	{/if}

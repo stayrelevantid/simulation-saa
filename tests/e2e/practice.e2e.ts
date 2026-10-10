@@ -23,7 +23,7 @@ async function answerCurrentQuestion(page: Page) {
 }
 
 test.describe('Scenario 1 — Practice flow', () => {
-	test('open app, start practice with defaults, answer, submit, see explanation', async ({
+	test('refresh resumes the first unanswered question and preserves completed summary', async ({
 		page
 	}) => {
 		await page.goto('/');
@@ -51,18 +51,34 @@ test.describe('Scenario 1 — Practice flow', () => {
 		await answerCurrentQuestion(page);
 		await expect(page.getByText('Explanation:', { exact: false })).toBeVisible();
 
+		// Reloading a partially completed practice resumes at question two.
+		await page.reload();
+		await expect(page.getByText('Question 2 of 10')).toBeVisible();
+
+		// The practice page offers an explicit resume path for the same active session.
+		await page.goto('/practice');
+		await expect(page.getByRole('heading', { name: 'Practice in progress' })).toBeVisible();
+		await page.getByRole('link', { name: 'Resume Practice' }).click();
+		await page.waitForURL(/\/practice\/session\?sessionId=/);
+		await expect(page.getByText('Question 2 of 10')).toBeVisible();
+
 		// Answer all remaining questions to reach the summary
 		while (true) {
+			const submitButton = page.getByRole('button', { name: 'Submit Answer' });
+			if (await submitButton.isVisible()) {
+				await answerCurrentQuestion(page);
+			}
+
 			const nextButton = page.getByRole('button', { name: /Finish Practice|Next Question/ });
 			if (!(await nextButton.isVisible())) break;
 
 			const isLast = (await nextButton.textContent())?.includes('Finish');
 			await nextButton.click();
 			if (isLast) break;
-
-			await answerCurrentQuestion(page);
 		}
 
+		await expect(page.getByText('Practice Complete')).toBeVisible();
+		await page.reload();
 		await expect(page.getByText('Practice Complete')).toBeVisible();
 	});
 });
