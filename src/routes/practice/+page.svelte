@@ -5,6 +5,7 @@
 	import PageContainer from '$lib/components/layout/PageContainer.svelte';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import SectionCard from '$lib/components/ui/SectionCard.svelte';
+	import ServiceFilter from '$lib/components/practice/ServiceFilter.svelte';
 
 	let { data, form }: PageProps = $props();
 
@@ -13,6 +14,7 @@
 	let domainId = $state('');
 	let difficulty = $state<string[]>(['easy']);
 	let questionType = $state<string[]>(['single', 'multiple']);
+	let selectedServices = $state<string[]>([]);
 	let validationError = $state('');
 
 	$effect(() => {
@@ -222,6 +224,19 @@
 						</p>
 					{/if}
 				</div>
+				<div>
+					<Label class="mb-2 block font-medium text-blue-grey-800 dark:text-blue-grey-100">
+						AWS Service <span class="font-normal text-blue-grey-400">(optional)</span>
+					</Label>
+					<ServiceFilter
+						services={data.services}
+						selected={selectedServices}
+						onchange={(services) => (selectedServices = services)}
+					/>
+					{#each selectedServices as service (service)}
+						<input type="hidden" name="service" value={service} />
+					{/each}
+				</div>
 			{:else}
 				<div
 					class="flex flex-wrap items-center gap-2 rounded-lg bg-blue-grey-050 p-3 text-sm text-blue-grey-700 dark:bg-blue-grey-900 dark:text-blue-grey-200"
@@ -245,6 +260,11 @@
 				<Badge color="blue">{domainId === '' ? 'All Domains' : 'Selected domain'}</Badge>
 				<Badge color={difficultyValid ? 'teal' : 'gray'}>{difficultyLabel}</Badge>
 				<Badge color={questionTypeValid ? 'purple' : 'gray'}>{questionTypeLabel}</Badge>
+				<Badge color={selectedServices.length > 0 ? 'teal' : 'gray'}>
+					{selectedServices.length > 0
+						? `${selectedServices.length} service${selectedServices.length === 1 ? '' : 's'}`
+						: 'All Services'}
+				</Badge>
 				<Badge color="blue">~{formValid ? estimatedMinutes : '—'} min</Badge>
 			</div>
 

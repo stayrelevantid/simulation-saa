@@ -34,7 +34,13 @@ export interface SelectionConfig {
 	domainId?: number;
 	difficulty?: Difficulty[];
 	questionType?: QuestionType[];
+	services?: string[];
 	excludeIds?: number[];
+}
+
+function serviceCondition(services?: string[]) {
+	if (!services || services.length === 0) return null;
+	return sql`EXISTS (SELECT 1 FROM ${questionServices} qs WHERE qs.question_id = ${questions.id} AND qs.service_name IN ${services})`;
 }
 
 function shuffle<T>(array: T[]): T[] {
@@ -56,6 +62,8 @@ export async function selectQuestions(config: SelectionConfig): Promise<Selected
 	if (config.questionType && config.questionType.length > 0) {
 		conditions.push(inArray(questions.questionType, config.questionType));
 	}
+	const serviceSql = serviceCondition(config.services);
+	if (serviceSql) conditions.push(serviceSql);
 	if (config.excludeIds && config.excludeIds.length > 0) {
 		conditions.push(sql`${questions.id} NOT IN ${config.excludeIds}`);
 	}
@@ -342,6 +350,8 @@ export async function countAvailableQuestions(
 	if (config.questionType && config.questionType.length > 0) {
 		conditions.push(inArray(questions.questionType, config.questionType));
 	}
+	const serviceSql = serviceCondition(config.services);
+	if (serviceSql) conditions.push(serviceSql);
 
 	let query = db
 		.select({ count: sql<number>`count(*)` })
@@ -353,6 +363,19 @@ export async function countAvailableQuestions(
 
 	const [row] = await query;
 	return row?.count ?? 0;
+}
+
+export async function listServiceCounts(): Promise<{ serviceName: string; count: number }[]> {
+	const rows = await db
+		.select({
+			serviceName: questionServices.serviceName,
+			count: sql<number>`count(distinct ${questionServices.questionId})`
+		})
+		.from(questionServices)
+		.groupBy(questionServices.serviceName)
+		.orderBy(desc(sql`count(distinct ${questionServices.questionId})`));
+
+	return rows.map((row) => ({ serviceName: row.serviceName, count: Number(row.count) }));
 }
 
 export async function countWrongQuestions(): Promise<number> {

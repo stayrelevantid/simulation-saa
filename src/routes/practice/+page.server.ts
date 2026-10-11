@@ -6,7 +6,8 @@ import {
 	selectQuestions,
 	selectWrongQuestions,
 	getActivePracticeSession,
-	startPracticeSession
+	startPracticeSession,
+	listServiceCounts
 } from '$lib/services/question.service';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Difficulty, QuestionType } from '$lib/types/question';
@@ -17,14 +18,16 @@ const VALID_QUESTION_TYPES: QuestionType[] = ['single', 'multiple'];
 export const load: PageServerLoad = async ({ url }) => {
 	const domains = await listDomains();
 	const mode = url.searchParams.get('mode') === 'wrong' ? 'wrong' : 'practice';
-	const [wrongCount, activeSession] = await Promise.all([
+	const [wrongCount, activeSession, services] = await Promise.all([
 		mode === 'wrong' ? countWrongQuestions() : Promise.resolve(0),
-		getActivePracticeSession()
+		getActivePracticeSession(),
+		mode === 'wrong' ? Promise.resolve([]) : listServiceCounts()
 	]);
 	return {
 		domains,
 		mode,
 		wrongCount,
+		services,
 		activeSession: activeSession ? { id: activeSession.id, mode: activeSession.mode } : null
 	};
 };
@@ -107,21 +110,29 @@ export const actions: Actions = {
 			throw redirect(303, `/practice/session?sessionId=${sessionId}`);
 		}
 
+		const services = formData
+			.getAll('service')
+			.map(String)
+			.map((value) => value.trim())
+			.filter(Boolean)
+			.slice(0, 20);
+
 		const available = await countAvailableQuestions({
 			domainId,
 			difficulty: difficulties as Difficulty[],
-			questionType: questionTypes as QuestionType[]
+			questionType: questionTypes as QuestionType[],
+			services
 		});
 		if (available === 0) {
 			return fail(400, {
 				error:
-					'No questions match your selected filters. Broaden your filters, or generate questions with the AI Generator.',
+					'No questions match your selected filters (including selected AWS services). Broaden your filters, or generate questions with the AI Generator.',
 				fields: { count: rawCount }
 			});
 		}
 		if (available < count) {
 			return fail(400, {
-				error: `Only ${available} question${available === 1 ? '' : 's'} match your selected filters. Choose fewer questions or broaden your filters.`,
+				error: `Only ${available} question${available === 1 ? '' : 's'} match your selected filters including selected AWS services. Choose fewer questions or broaden your filters.`,
 				fields: { count: rawCount }
 			});
 		}
@@ -130,7 +141,8 @@ export const actions: Actions = {
 			count,
 			domainId,
 			difficulty: difficulties as Difficulty[],
-			questionType: questionTypes as QuestionType[]
+			questionType: questionTypes as QuestionType[],
+			services
 		});
 		if (selected.length < count) {
 			return fail(400, {

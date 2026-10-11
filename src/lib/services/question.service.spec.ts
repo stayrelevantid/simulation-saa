@@ -12,6 +12,7 @@ vi.mock('$lib/db/client', () => ({ db: testDb }));
 let selectQuestions: typeof import('./question.service').selectQuestions;
 let countAvailableQuestions: typeof import('./question.service').countAvailableQuestions;
 let countWrongQuestions: typeof import('./question.service').countWrongQuestions;
+let listServiceCounts: typeof import('./question.service').listServiceCounts;
 
 beforeAll(async () => {
 	migrate(testDb, { migrationsFolder: 'drizzle' });
@@ -20,6 +21,7 @@ beforeAll(async () => {
 	selectQuestions = service.selectQuestions;
 	countAvailableQuestions = service.countAvailableQuestions;
 	countWrongQuestions = service.countWrongQuestions;
+	listServiceCounts = service.listServiceCounts;
 
 	await testDb.insert(schema.examProfiles).values({
 		code: 'SAA-C03',
@@ -65,6 +67,17 @@ beforeAll(async () => {
 			{ questionId: q.id, optionKey: 'B', optionText: 'B', isCorrect: false }
 		]);
 	}
+
+	await testDb.insert(schema.questionServices).values([
+		{ questionId: 1, serviceName: 'Amazon S3' },
+		{ questionId: 2, serviceName: 'Amazon S3' },
+		{ questionId: 2, serviceName: 'Amazon EC2' },
+		{ questionId: 3, serviceName: 'Amazon EC2' },
+		{ questionId: 4, serviceName: 'AWS Lambda' },
+		{ questionId: 5, serviceName: 'Amazon RDS' },
+		{ questionId: 6, serviceName: 'Amazon S3' },
+		{ questionId: 6, serviceName: 'Amazon RDS' }
+	]);
 
 	await testDb.insert(schema.examSessions).values({
 		id: 10,
@@ -177,5 +190,53 @@ describe('countAvailableQuestions', () => {
 describe('countWrongQuestions', () => {
 	it('counts distinct wrong questions', async () => {
 		expect(await countWrongQuestions()).toBe(2);
+	});
+});
+
+describe('selectQuestions with AWS service filter', () => {
+	it('matches questions for a single service', async () => {
+		const result = await selectQuestions({ count: 10, services: ['Amazon S3'] });
+		expect(result.map((q) => q.id).sort((a, b) => a - b)).toEqual([1, 2, 6]);
+	});
+
+	it('matches any of multiple services (OR)', async () => {
+		const result = await selectQuestions({ count: 10, services: ['Amazon EC2', 'AWS Lambda'] });
+		expect(result.map((q) => q.id).sort((a, b) => a - b)).toEqual([2, 3, 4]);
+	});
+
+	it('returns all questions when services are omitted', async () => {
+		expect(await selectQuestions({ count: 10 })).toHaveLength(6);
+	});
+
+	it('exposes the services attached to each question', async () => {
+		const result = await selectQuestions({ count: 10, services: ['Amazon EC2'] });
+		const q2 = result.find((q) => q.id === 2);
+		expect(q2?.services.sort()).toEqual(['Amazon EC2', 'Amazon S3']);
+	});
+
+	it('counts distinct questions for a service', async () => {
+		expect(await countAvailableQuestions({ services: ['Amazon S3'] })).toBe(3);
+	});
+
+	it('counts with service combined with difficulty', async () => {
+		expect(await countAvailableQuestions({ services: ['Amazon S3'], difficulty: ['easy'] })).toBe(
+			1
+		);
+	});
+
+	it('returns zero when no question matches the service', async () => {
+		expect(await countAvailableQuestions({ services: ['Amazon Kinesis'] })).toBe(0);
+	});
+});
+
+describe('listServiceCounts', () => {
+	it('returns per-service question counts, highest first', async () => {
+		const counts = await listServiceCounts();
+		const map = new Map(counts.map((c) => [c.serviceName, c.count]));
+		expect(map.get('Amazon S3')).toBe(3);
+		expect(map.get('Amazon EC2')).toBe(2);
+		expect(map.get('Amazon RDS')).toBe(2);
+		expect(map.get('AWS Lambda')).toBe(1);
+		expect(counts[0].count).toBeGreaterThanOrEqual(counts[counts.length - 1].count);
 	});
 });

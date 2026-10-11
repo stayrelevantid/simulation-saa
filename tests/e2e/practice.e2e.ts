@@ -144,3 +144,52 @@ test.describe('Practice configuration validation', () => {
 		await expect(page.getByText(/Question 1 of \d+/)).toBeVisible();
 	});
 });
+
+test.describe('Practice AWS service filter', () => {
+	test('blocks when requested count exceeds the selected service availability', async ({
+		page
+	}) => {
+		await page.goto('/practice');
+
+		await page
+			.getByRole('checkbox', { name: /Amazon S3/ })
+			.first()
+			.click();
+		await expect(page.getByText('1 service')).toBeVisible();
+
+		await page.getByPlaceholder('Custom').fill('100');
+		await page.getByRole('button', { name: 'Start Practice', exact: true }).click();
+
+		await expect(page.getByText(/selected AWS services/)).toBeVisible();
+		await expect(page).not.toHaveURL(/\/practice\/session/);
+	});
+
+	test('starts a session where every question matches the selected service', async ({ page }) => {
+		await page.goto('/practice');
+
+		await page
+			.getByRole('checkbox', { name: /Amazon S3/ })
+			.first()
+			.click();
+		await page.getByPlaceholder('Custom').fill('1');
+		await page.getByRole('button', { name: 'Start Practice', exact: true }).click();
+		await page.waitForURL(/\/practice\/session\?sessionId=/);
+		await expect(page.getByText(/Question 1 of 1/)).toBeVisible();
+
+		// Verify in the database that the session's question is tagged Amazon S3
+		const { default: Database } = await import('better-sqlite3');
+		const db = new Database('data/saa-practice.db');
+		const sessionId = Number(new URL(page.url()).searchParams.get('sessionId'));
+		const rows = db
+			.prepare(
+				`SELECT qs.service_name
+				 FROM exam_answers ea
+				 JOIN question_services qs ON qs.question_id = ea.question_id
+				 WHERE ea.exam_session_id = ?`
+			)
+			.all(sessionId) as { service_name: string }[];
+		db.close();
+
+		expect(rows.some((r) => r.service_name === 'Amazon S3')).toBe(true);
+	});
+});
