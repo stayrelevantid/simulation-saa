@@ -32,10 +32,10 @@ test.describe('Scenario 1 — Practice flow', () => {
 		await page.goto('/practice');
 		await expect(page.getByRole('heading', { name: 'Start Practice' })).toBeVisible();
 
-		// Verify defaults: Easy checked, both types checked, All Domains, count 10
+		// Verify defaults: all difficulties checked, both types checked, All Domains, count 10
 		await expect(page.getByRole('checkbox', { name: 'Easy' })).toBeChecked();
-		await expect(page.getByRole('checkbox', { name: 'Medium' })).not.toBeChecked();
-		await expect(page.getByRole('checkbox', { name: 'Hard' })).not.toBeChecked();
+		await expect(page.getByRole('checkbox', { name: 'Medium' })).toBeChecked();
+		await expect(page.getByRole('checkbox', { name: 'Hard' })).toBeChecked();
 		await expect(page.getByRole('checkbox', { name: 'Single Choice' })).toBeChecked();
 		await expect(page.getByRole('checkbox', { name: 'Multiple Response' })).toBeChecked();
 
@@ -88,6 +88,8 @@ test.describe('Practice configuration validation', () => {
 		await page.goto('/practice');
 
 		await page.getByRole('checkbox', { name: 'Easy' }).uncheck();
+		await page.getByRole('checkbox', { name: 'Medium' }).uncheck();
+		await page.getByRole('checkbox', { name: 'Hard' }).uncheck();
 
 		await expect(page.getByRole('button', { name: 'Start Practice', exact: true })).toBeDisabled();
 		await expect(page.getByText('Select at least one difficulty level.')).toBeVisible();
@@ -124,6 +126,7 @@ test.describe('Practice configuration validation', () => {
 
 		// Narrow filter: easy only, but request 50 (fewer than 50 easy questions exist)
 		await page.getByRole('checkbox', { name: 'Medium' }).uncheck();
+		await page.getByRole('checkbox', { name: 'Hard' }).uncheck();
 		await page.getByRole('checkbox', { name: 'Multiple Response' }).uncheck();
 		await page.getByRole('button', { name: '50' }).click();
 		await page.getByRole('button', { name: 'Start Practice', exact: true }).click();
@@ -135,7 +138,7 @@ test.describe('Practice configuration validation', () => {
 	test('multi-select difficulty works: easy + medium', async ({ page }) => {
 		await page.goto('/practice');
 
-		await page.getByRole('checkbox', { name: 'Medium' }).check();
+		await page.getByRole('checkbox', { name: 'Hard' }).uncheck();
 		await page.getByRole('checkbox', { name: 'Multiple Response' }).uncheck();
 
 		await page.getByRole('button', { name: 'Start Practice', exact: true }).click();

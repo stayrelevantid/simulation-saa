@@ -12,7 +12,7 @@
 	let count = $state(10);
 	let customCount = $state('');
 	let domainId = $state('');
-	let difficulty = $state<string[]>(['easy']);
+	let difficulty = $state<string[]>(['easy', 'medium', 'hard']);
 	let questionType = $state<string[]>(['single', 'multiple']);
 	let selectedServices = $state<string[]>([]);
 	let validationError = $state('');
