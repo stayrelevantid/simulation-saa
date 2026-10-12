@@ -7,7 +7,8 @@ import {
 	selectWrongQuestions,
 	getActivePracticeSession,
 	startPracticeSession,
-	listServiceCounts
+	listServiceCounts,
+	getMasteredQuestionIds
 } from '$lib/services/question.service';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Difficulty, QuestionType } from '$lib/types/question';
@@ -117,12 +118,14 @@ export const actions: Actions = {
 			.filter(Boolean)
 			.slice(0, 20);
 
-		const available = await countAvailableQuestions({
+		const baseConfig = {
 			domainId,
 			difficulty: difficulties as Difficulty[],
 			questionType: questionTypes as QuestionType[],
 			services
-		});
+		};
+
+		const available = await countAvailableQuestions(baseConfig);
 		if (available === 0) {
 			return fail(400, {
 				error:
@@ -130,19 +133,32 @@ export const actions: Actions = {
 				fields: { count: rawCount }
 			});
 		}
-		if (available < count) {
+
+		const masteredIds = await getMasteredQuestionIds();
+		let excludeIds: number[] | undefined;
+		let effectiveAvailable = available;
+		if (masteredIds.length > 0) {
+			const freshAvailable = await countAvailableQuestions({
+				...baseConfig,
+				excludeIds: masteredIds
+			});
+			if (freshAvailable >= count) {
+				excludeIds = masteredIds;
+				effectiveAvailable = freshAvailable;
+			}
+		}
+
+		if (effectiveAvailable < count) {
 			return fail(400, {
-				error: `Only ${available} question${available === 1 ? '' : 's'} match your selected filters including selected AWS services. Choose fewer questions or broaden your filters.`,
+				error: `Only ${effectiveAvailable} question${effectiveAvailable === 1 ? '' : 's'} match your selected filters including selected AWS services. Choose fewer questions or broaden your filters.`,
 				fields: { count: rawCount }
 			});
 		}
 
 		const selected = await selectQuestions({
 			count,
-			domainId,
-			difficulty: difficulties as Difficulty[],
-			questionType: questionTypes as QuestionType[],
-			services
+			...baseConfig,
+			excludeIds
 		});
 		if (selected.length < count) {
 			return fail(400, {

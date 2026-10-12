@@ -339,7 +339,7 @@ export async function getPracticeSessionResume(sessionId: number): Promise<Pract
 }
 
 export async function countAvailableQuestions(
-	config: Omit<SelectionConfig, 'count' | 'excludeIds'>
+	config: Omit<SelectionConfig, 'count'>
 ): Promise<number> {
 	const conditions = [];
 
@@ -352,6 +352,9 @@ export async function countAvailableQuestions(
 	}
 	const serviceSql = serviceCondition(config.services);
 	if (serviceSql) conditions.push(serviceSql);
+	if (config.excludeIds && config.excludeIds.length > 0) {
+		conditions.push(sql`${questions.id} NOT IN ${config.excludeIds}`);
+	}
 
 	let query = db
 		.select({ count: sql<number>`count(*)` })
@@ -363,6 +366,19 @@ export async function countAvailableQuestions(
 
 	const [row] = await query;
 	return row?.count ?? 0;
+}
+
+/**
+ * Returns the IDs of questions the user has already answered correctly at least
+ * once (across practice and exam sessions), so new practice sessions can avoid
+ * re-drilling mastered questions.
+ */
+export async function getMasteredQuestionIds(): Promise<number[]> {
+	const rows = await db
+		.selectDistinct({ questionId: examAnswers.questionId })
+		.from(examAnswers)
+		.where(eq(examAnswers.isCorrect, true));
+	return rows.map((r) => r.questionId);
 }
 
 export async function listServiceCounts(): Promise<{ serviceName: string; count: number }[]> {

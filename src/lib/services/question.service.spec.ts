@@ -13,6 +13,7 @@ let selectQuestions: typeof import('./question.service').selectQuestions;
 let countAvailableQuestions: typeof import('./question.service').countAvailableQuestions;
 let countWrongQuestions: typeof import('./question.service').countWrongQuestions;
 let listServiceCounts: typeof import('./question.service').listServiceCounts;
+let getMasteredQuestionIds: typeof import('./question.service').getMasteredQuestionIds;
 
 beforeAll(async () => {
 	migrate(testDb, { migrationsFolder: 'drizzle' });
@@ -22,6 +23,7 @@ beforeAll(async () => {
 	countAvailableQuestions = service.countAvailableQuestions;
 	countWrongQuestions = service.countWrongQuestions;
 	listServiceCounts = service.listServiceCounts;
+	getMasteredQuestionIds = service.getMasteredQuestionIds;
 
 	await testDb.insert(schema.examProfiles).values({
 		code: 'SAA-C03',
@@ -190,6 +192,30 @@ describe('countAvailableQuestions', () => {
 describe('countWrongQuestions', () => {
 	it('counts distinct wrong questions', async () => {
 		expect(await countWrongQuestions()).toBe(2);
+	});
+});
+
+describe('getMasteredQuestionIds', () => {
+	it('returns IDs of questions answered correctly at least once', async () => {
+		const ids = await getMasteredQuestionIds();
+		expect(ids.sort((a, b) => a - b)).toEqual([3]);
+	});
+});
+
+describe('excludeIds support', () => {
+	it('excludes mastered questions from selection', async () => {
+		const result = await selectQuestions({ count: 10, excludeIds: [3] });
+		expect(result).toHaveLength(5);
+		expect(result.every((q) => q.id !== 3)).toBe(true);
+	});
+
+	it('counts available questions excluding mastered IDs', async () => {
+		expect(await countAvailableQuestions({ excludeIds: [3] })).toBe(5);
+	});
+
+	it('ignores an empty excludeIds list', async () => {
+		expect(await countAvailableQuestions({ excludeIds: [] })).toBe(6);
+		expect(await selectQuestions({ count: 10, excludeIds: [] })).toHaveLength(6);
 	});
 });
 
