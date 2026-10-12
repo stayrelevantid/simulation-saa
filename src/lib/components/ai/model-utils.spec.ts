@@ -85,7 +85,7 @@ describe('pickDefaultModel', () => {
 
 	it('matches the provider-prefixed variant on OmniRoute-style lists', () => {
 		const withoutFlat = PREFIXED.filter((m) => m !== RECOMMENDED_MODELS[0]);
-		// preferred[1] === 'opencode-go/deepseek-v4-flash'
+		// The prefixed variant follows the flat chat-capable IDs in RECOMMENDED_MODELS.
 		expect(pickDefaultModel(withoutFlat)).toBe('opencode-go/deepseek-v4-flash');
 	});
 

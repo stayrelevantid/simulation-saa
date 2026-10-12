@@ -41,9 +41,10 @@ export function groupModels(
 
 export const RECOMMENDED_MODELS = [
 	'deepseek-v4-flash',
+	'deepseek-v4-pro',
+	'glm-5.3',
+	'kimi-k3',
 	'opencode-go/deepseek-v4-flash',
-	'gpt-5.6-luna',
-	'opencode-go/gpt-5.6-luna',
 	'auto/best-reasoning',
 	'auto/best-fast'
 ];
