@@ -111,22 +111,17 @@ test.describe('Scenario 3 — AI generate → validate → import', () => {
 
 	test.afterAll(async () => {
 		await new Promise<void>((resolve) => mockServer.close(() => resolve()));
-		// Keep the dev bank clean: remove questions this suite auto-imported
+		// Remove only the questions this suite generated (marked with the run's
+		// unique RUN_ID), not every AI-sourced question in the bank.
+		const marker = `video archive ${RUN_ID}`;
 		const { default: Database } = await import('better-sqlite3');
 		const db = new Database('data/saa-practice.db');
-		db.prepare(
-			"DELETE FROM question_options WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
-		).run();
-		db.prepare(
-			"DELETE FROM question_services WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
-		).run();
-		db.prepare(
-			"DELETE FROM bookmarks WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
-		).run();
-		db.prepare(
-			"DELETE FROM exam_answers WHERE question_id IN (SELECT id FROM questions WHERE source='ai')"
-		).run();
-		db.prepare("DELETE FROM questions WHERE source='ai'").run();
+		const idFilter = 'SELECT id FROM questions WHERE question_text LIKE ?';
+		const like = `%${marker}%`;
+		for (const table of ['question_options', 'question_services', 'bookmarks', 'exam_answers']) {
+			db.prepare(`DELETE FROM ${table} WHERE question_id IN (${idFilter})`).run(like);
+		}
+		db.prepare('DELETE FROM questions WHERE question_text LIKE ?').run(like);
 		db.close();
 	});
 
